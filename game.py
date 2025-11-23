@@ -52,7 +52,7 @@ SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT
 GROUND_HEIGHT = 20
 MAX_JUMPS = 1
 BASE_SCROLL_SPEED = 0.3
-SPEED_PROGRESSION = 3000  # Score needed to double speed
+SPEED_PROGRESSION = 2000  # +0.1 speed per 200 points
 JUMP_CLEARANCE_MULTIPLIER = 1.2  # Jump 1.2x the tallest obstacle
 
 # Obstacles with flat tops that can be stood on
@@ -75,6 +75,64 @@ BLUE = (100, 100, 255)
 # Psychedelic colors for acid trip
 PSYCHEDELIC_COLORS = [MAGENTA, CYAN, PINK, PURPLE, ORANGE, LIME, YELLOW, RED, BLUE]
 
+# Environment definitions
+# Each environment has: ground_color, ground_chars, bg_color, bg_chars, fill_char
+ENVIRONMENTS = {
+    "grass": {
+        "ground_color": GREEN,
+        "ground_chars": ('#', '=', '"', ','),  # Grass and plants
+        "bg_color": (0, 180, 0),  # Darker green for background
+        "bg_chars": ('^', 'Y', '*', 'T'),  # Trees and bushes
+        "fill_color": (100, 80, 50),  # Brown dirt
+        "fill_char": '.',
+    },
+    "desert": {
+        "ground_color": YELLOW,
+        "ground_chars": ('~', '.', '_', ':'),  # Sand patterns
+        "bg_color": (200, 150, 50),  # Darker sand/rocks
+        "bg_chars": ('A', 'n', '^', 'o'),  # Rock formations
+        "fill_color": (180, 130, 40),  # Darker sand
+        "fill_char": ':',
+    },
+    "snow": {
+        "ground_color": WHITE,
+        "ground_chars": ('*', '.', '~', '_'),  # Snow and ice
+        "bg_color": (200, 200, 220),  # Blueish snow
+        "bg_chars": ('^', 'A', '*', 'T'),  # Snowy peaks and trees
+        "fill_color": (180, 180, 200),  # Packed snow
+        "fill_char": '.',
+    },
+    "cave": {
+        "ground_color": (150, 150, 150),  # Gray
+        "ground_chars": ('#', '=', '_', '.'),  # Stone floor
+        "bg_color": (100, 100, 100),  # Darker gray
+        "bg_chars": ('^', 'V', '|', 'M'),  # Stalactites and rocks
+        "fill_color": (80, 80, 80),  # Dark rock
+        "fill_char": '#',
+    },
+    "lava": {
+        "ground_color": (200, 50, 0),  # Dark red
+        "ground_chars": ('#', '=', '~', '^'),  # Hardite platform
+        "bg_color": (255, 100, 0),  # Orange lava glow
+        "bg_chars": ('^', 'M', 'W', '~'),  # Volcanic formations
+        "fill_color": (150, 30, 0),  # Dark volcanic rock
+        "fill_char": '.',
+    },
+}
+
+# Environment progression by score
+def get_environment_for_score(score):
+    if score < 500:
+        return "grass"
+    elif score < 1200:
+        return "desert"
+    elif score < 2000:
+        return "snow"
+    elif score < 3000:
+        return "cave"
+    else:
+        return "lava"
+
 # Player character - more detailed
 PLAYER_CHAR = [
     "  ,O,  ",
@@ -89,6 +147,53 @@ PLAYER_JUMP_CHAR = [
     "  |_|  ",
     " /   \\ ",
 ]
+
+# Lotus meditation pose for nirvana
+PLAYER_LOTUS_CHAR = [
+    "  ,O,  ",
+    " \\|X|/ ",
+    "  /_\\  ",
+    " /| |\\",
+]
+
+# Rainbow eye for nirvana mode (centered behind player)
+RAINBOW_EYE = [
+    "    .~~~~~.    ",
+    "   /   _   \\   ",
+    "  |  ((@))  |  ",
+    "  |   \\_/   |  ",
+    "   \\_______/   ",
+]
+
+# Flash text for acid/nirvana
+ACID_FLASH_TEXT = [
+    "    _    ____ ___ ____  ",
+    "   / \\  / ___|_ _|  _ \\ ",
+    "  / _ \\| |    | || | | |",
+    " / ___ \\ |___ | || |_| |",
+    "/_/   \\_\\____|___|____/ ",
+]
+
+NIRVANA_FLASH_TEXT = [
+    " _   _ ___ ______     ___    _   _    _    ",
+    "| \\ | |_ _|  _ \\ \\   / / \\  | \\ | |  / \\   ",
+    "|  \\| || || |_) \\ \\ / / _ \\ |  \\| | / _ \\  ",
+    "| |\\  || ||  _ < \\ V / ___ \\| |\\  |/ ___ \\ ",
+    "|_| \\_|___|_| \\_\\ \\_/_/   \\_\\_| \\_/_/   \\_\\",
+]
+
+# Emoji replacements for emoji acid mode
+EMOJI_CHARS = {
+    # Player
+    'O': '😊', ',': '✨', '|': '│', 'X': '💚', '_': '─', '/': '╱', '\\': '╲',
+    # Ground/terrain
+    '#': '🌿', '=': '🌱', '"': '🌾', '^': '🌲', 'Y': '🌳', '*': '⭐', 'T': '🎄',
+    '.': '·', ':': ':', '~': '〰️',
+    # Obstacles
+    '[': '📦', ']': '📦', '-': '─',
+    # Effects
+    '>': '💥', '<': '💨', 'o': '💭', '@': '🔮',
+}
 
 # Obstacles - Easy (more detailed)
 OBSTACLE_CHARS_EASY = [
@@ -380,10 +485,18 @@ class FartPuff:
         return self.chars[idx]
 
 class LavaBlob:
-    def __init__(self):
-        self.x = random.randint(0, SCREEN_COLS - 1)
-        self.y = SCREEN_ROWS + random.randint(0, 5)
-        self.speed = random.uniform(0.1, 0.3)
+    def __init__(self, horizontal=False):
+        self.horizontal = horizontal
+        if horizontal:
+            # Horizontal mode: come from right side
+            self.x = SCREEN_COLS + random.randint(0, 5)
+            self.y = random.randint(5, SCREEN_ROWS - 3)
+            self.speed = random.uniform(0.3, 0.6)
+        else:
+            # Vertical mode: rise from bottom
+            self.x = random.randint(0, SCREEN_COLS - 1)
+            self.y = SCREEN_ROWS + random.randint(0, 5)
+            self.speed = random.uniform(0.1, 0.3)
         self.wobble = random.uniform(0, math.pi * 2)
         self.wobble_speed = random.uniform(0.05, 0.15)
         self.size = random.choice([1, 2, 3])
@@ -397,11 +510,17 @@ class LavaBlob:
             self.char = "@"
 
     def update(self):
-        self.y -= self.speed
         self.wobble += self.wobble_speed
-        self.x += math.sin(self.wobble) * 0.3
+        if self.horizontal:
+            self.x -= self.speed
+            self.y += math.sin(self.wobble) * 0.3
+        else:
+            self.y -= self.speed
+            self.x += math.sin(self.wobble) * 0.3
 
     def is_off_screen(self):
+        if self.horizontal:
+            return self.x < -2
         return self.y < -2
 
 class Powerup:
@@ -432,8 +551,27 @@ class Player:
         self.beans_timer = 0
         self.ammo = 0  # Pistol ammo
         self.acid_timer = 0
+        self.acid_flash_timer = 0  # Flash "ACID" text
+        self.nirvana_flash_timer = 0  # Flash "NIRVANA" text
+        self.was_in_nirvana = False  # Track nirvana state transitions
         self.width = 7  # Character width
         self.height = 4  # Character height
+
+    def get_acid_level(self):
+        """Return acid level: 0=none, 1=normal(0-10s), 2=emoji(11-20s), 3=nirvana(21-30s)"""
+        if self.acid_timer <= 0:
+            return 0
+        secs = self.acid_timer / 60
+        if secs <= 10:
+            return 1  # Normal psychedelic
+        elif secs <= 20:
+            return 2  # Emoji mode
+        else:
+            return 3  # Nirvana mode
+
+    def is_invincible(self):
+        """Player is invincible during nirvana"""
+        return self.get_acid_level() == 3
 
     def get_max_jumps(self):
         return MAX_JUMPS + (1 if self.jetpack_jumps > 0 else 0)
@@ -454,13 +592,26 @@ class Player:
         self.on_ground = False
 
     def update(self):
-        self.vel_y += GRAVITY
-        self.y += self.vel_y
-        if self.y >= GROUND_HEIGHT - self.height:
-            self.y = GROUND_HEIGHT - self.height
+        # Check for nirvana transition
+        current_nirvana = self.get_acid_level() == 3
+        if current_nirvana and not self.was_in_nirvana:
+            self.nirvana_flash_timer = 60  # Flash for 1 second
+        self.was_in_nirvana = current_nirvana
+
+        # In nirvana, float in the sky
+        if self.get_acid_level() == 3:
+            target_y = 6  # Float high in sky
+            self.y += (target_y - self.y) * 0.1  # Smooth float up
             self.vel_y = 0
-            self.jumps_left = self.get_max_jumps()
-            self.on_ground = True
+            self.on_ground = False
+        else:
+            self.vel_y += GRAVITY
+            self.y += self.vel_y
+            if self.y >= GROUND_HEIGHT - self.height:
+                self.y = GROUND_HEIGHT - self.height
+                self.vel_y = 0
+                self.jumps_left = self.get_max_jumps()
+                self.on_ground = True
 
         if self.has_beans:
             self.beans_timer -= 1
@@ -470,7 +621,15 @@ class Player:
         if self.acid_timer > 0:
             self.acid_timer -= 1
 
+        if self.acid_flash_timer > 0:
+            self.acid_flash_timer -= 1
+
+        if self.nirvana_flash_timer > 0:
+            self.nirvana_flash_timer -= 1
+
     def get_char(self):
+        if self.get_acid_level() == 3:
+            return PLAYER_LOTUS_CHAR
         return PLAYER_JUMP_CHAR if not self.on_ground else PLAYER_CHAR
 
 class Obstacle:
@@ -650,7 +809,8 @@ class Game:
                 elif powerup.type == POWERUP_PISTOL:
                     self.player.ammo += 10
                 elif powerup.type == POWERUP_ACID:
-                    self.player.acid_timer = random.randint(300, 600)  # 5-10 seconds at 60fps
+                    self.player.acid_timer = random.randint(1200, 1800)  # 20-30 seconds at 60fps
+                    self.player.acid_flash_timer = 60  # Flash "ACID" for 1 second
                     self.acid_sound.play()
                 elif powerup.type == POWERUP_STOPWATCH:
                     self.stopwatch_timer = 300  # 5 seconds at 60fps
@@ -715,9 +875,11 @@ class Game:
         if self.player.acid_timer > 0:
             for blob in self.lava_blobs:
                 blob.update()
-            # Spawn new blobs
+            # Spawn new blobs - both vertical and horizontal
             if random.random() < 0.15:
-                self.lava_blobs.append(LavaBlob())
+                # Mix of vertical and horizontal blobs
+                horizontal = random.random() < 0.5
+                self.lava_blobs.append(LavaBlob(horizontal=horizontal))
             self.lava_blobs = [b for b in self.lava_blobs if not b.is_off_screen()]
         else:
             self.lava_blobs = []
@@ -737,7 +899,7 @@ class Game:
             # Add fart puff
             self.fart_puffs.append(FartPuff(self.player.x + self.player.width // 2, self.player.y + self.player.height))
 
-        if self.check_collision():
+        if self.check_collision() and not self.player.is_invincible():
             self.game_over = True
             self.death_sound.play()
             if self.score > self.high_score:
@@ -755,18 +917,61 @@ class Game:
         # Buffer now stores (char, color) tuples
         screen = [[(' ', BLACK) for _ in range(SCREEN_COLS)] for _ in range(SCREEN_ROWS)]
 
+        # Get current environment
+        env_name = get_environment_for_score(self.score)
+        env = ENVIRONMENTS[env_name]
+
         # Draw lava blobs (background, behind everything)
         for blob in self.lava_blobs:
             x, y = int(blob.x), int(blob.y)
             if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
                 screen[y][x] = (blob.char, blob.color)
 
-        # Draw ground
-        ground_color = GREEN
+        # Background terrain level (hills/mountains in background)
+        BG_TERRAIN_TOP = 12  # Top of background terrain
+        BG_TERRAIN_BOTTOM = 17  # Bottom of background terrain
+
+        # Draw background terrain (elevated ground in background)
+        bg_color = env["bg_color"]
+        bg_chars = env["bg_chars"]
+        if self.player.acid_timer > 0:
+            bg_color = random.choice(PSYCHEDELIC_COLORS)
+
+        # Draw background terrain top line with decorations
+        for x in range(SCREEN_COLS):
+            # Vary the height slightly for natural look
+            height_offset = (x // 8) % 3 - 1  # -1, 0, or 1
+            terrain_top = BG_TERRAIN_TOP + height_offset
+
+            # Draw the top decoration (trees, rocks, etc.)
+            if terrain_top >= 0 and terrain_top < SCREEN_ROWS:
+                char = bg_chars[x % len(bg_chars)]
+                screen[terrain_top][x] = (char, bg_color)
+
+        # Fill between background terrain and foreground ground
+        fill_color = env["fill_color"]
+        fill_char = env["fill_char"]
+        if self.player.acid_timer > 0:
+            fill_color = random.choice(PSYCHEDELIC_COLORS)
+
+        for y in range(BG_TERRAIN_BOTTOM, GROUND_HEIGHT):
+            for x in range(SCREEN_COLS):
+                # Add some texture variation
+                if (x + y) % 5 == 0:
+                    char = ':'
+                elif (x + y) % 7 == 0:
+                    char = '.'
+                else:
+                    char = fill_char
+                screen[y][x] = (char, fill_color)
+
+        # Draw foreground ground
+        ground_color = env["ground_color"]
+        ground_chars = env["ground_chars"]
         if self.player.acid_timer > 0:
             ground_color = random.choice(PSYCHEDELIC_COLORS)
         for x in range(SCREEN_COLS):
-            char = '#' if x % 4 == 0 else '='
+            char = ground_chars[x % len(ground_chars)]
             screen[GROUND_HEIGHT][x] = (char, ground_color)
 
         # Draw obstacles
@@ -803,6 +1008,23 @@ class Game:
                 if 0 <= x + i < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
                     screen[y][x + i] = (char, ORANGE)
 
+        # Draw rainbow eye behind player during nirvana
+        acid_level = self.player.get_acid_level()
+        if acid_level == 3:
+            # Draw rainbow eye centered behind player
+            eye_width = len(RAINBOW_EYE[0])
+            eye_height = len(RAINBOW_EYE)
+            eye_x = int(self.player.x) + (self.player.width // 2) - (eye_width // 2)
+            eye_y = int(self.player.y) - 1  # Slightly above/behind player
+
+            for i, row in enumerate(RAINBOW_EYE):
+                for j, char in enumerate(row):
+                    x, y = eye_x + j, eye_y + i
+                    if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
+                        # Rainbow colors cycling through the eye
+                        color_idx = (i + j + self.frame // 3) % len(PSYCHEDELIC_COLORS)
+                        screen[y][x] = (char, PSYCHEDELIC_COLORS[color_idx])
+
         # Draw player
         player_color = CYAN
         if self.player.acid_timer > 0:
@@ -813,6 +1035,43 @@ class Game:
                 x, y = int(self.player.x) + j, int(self.player.y) + i
                 if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
                     screen[y][x] = (char, player_color)
+
+        # Draw flash text for ACID or NIRVANA
+        if self.player.acid_flash_timer > 0:
+            # Flash "ACID" in middle of sky
+            flash_text = ACID_FLASH_TEXT
+            flash_y = 2  # Top area, avoiding HUD
+            flash_x = (SCREEN_COLS - len(flash_text[0])) // 2
+            # Flicker effect
+            if self.player.acid_flash_timer % 6 < 3:
+                for i, row in enumerate(flash_text):
+                    for j, char in enumerate(row):
+                        x, y = flash_x + j, flash_y + i
+                        if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
+                            color = PSYCHEDELIC_COLORS[(i + j + self.frame) % len(PSYCHEDELIC_COLORS)]
+                            screen[y][x] = (char, color)
+
+        if self.player.nirvana_flash_timer > 0:
+            # Flash "NIRVANA" in middle of sky
+            flash_text = NIRVANA_FLASH_TEXT
+            flash_y = 2  # Top area
+            flash_x = (SCREEN_COLS - len(flash_text[0])) // 2
+            # Flicker effect
+            if self.player.nirvana_flash_timer % 6 < 3:
+                for i, row in enumerate(flash_text):
+                    for j, char in enumerate(row):
+                        x, y = flash_x + j, flash_y + i
+                        if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
+                            color = PSYCHEDELIC_COLORS[(i + j + self.frame) % len(PSYCHEDELIC_COLORS)]
+                            screen[y][x] = (char, color)
+
+        # Apply emoji mode for acid level 2 (11-20s)
+        if acid_level == 2:
+            for y in range(SCREEN_ROWS):
+                for x in range(SCREEN_COLS):
+                    char, color = screen[y][x]
+                    if char in EMOJI_CHARS:
+                        screen[y][x] = (EMOJI_CHARS[char], color)
 
         return screen
 
@@ -1082,11 +1341,20 @@ def main():
             screen.blit(surface, (10, y_offset))
             y_offset += 18
 
-        # Acid timer
+        # Acid timer with level indicator
         if game.player.acid_timer > 0:
             secs = game.player.acid_timer // 60
-            acid_text = f"<*> {secs}s"
-            surface = font.render(acid_text, True, MAGENTA)
+            acid_level = game.player.get_acid_level()
+            if acid_level == 3:
+                acid_text = f"NIRVANA {secs}s"
+                color = PSYCHEDELIC_COLORS[game.frame % len(PSYCHEDELIC_COLORS)]
+            elif acid_level == 2:
+                acid_text = f"EMOJI {secs}s"
+                color = YELLOW
+            else:
+                acid_text = f"<*> {secs}s"
+                color = MAGENTA
+            surface = font.render(acid_text, True, color)
             screen.blit(surface, (10, y_offset))
             y_offset += 18
 
