@@ -1159,11 +1159,16 @@ class GameController {
     }
 
     gameLoop(currentTime) {
+        // Initialize lastTime on first frame
+        if (this.lastTime === 0) {
+            this.lastTime = currentTime;
+        }
+
         const deltaTime = currentTime - this.lastTime;
         this.lastTime = currentTime;
 
-        // Prevent spiral of death on slow systems
-        const cappedDelta = Math.min(deltaTime, 100);
+        // Prevent spiral of death - cap to max 2 frames worth
+        const cappedDelta = Math.min(deltaTime, this.frameTime * 2);
         this.accumulator += cappedDelta;
 
         if (this.state === 'intro') {
