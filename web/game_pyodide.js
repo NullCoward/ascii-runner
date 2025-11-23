@@ -1,5 +1,5 @@
 // ASCII Runner - Pyodide Web Version
-// Uses Python game_engine via Pyodide
+// Uses Python game_engine via Pyodide - single source of truth
 
 let pyodide = null;
 let gameEngine = null;
@@ -8,10 +8,34 @@ let ctx = null;
 let animationId = null;
 let audioContext = null;
 
+// Game state
+let gameState = 'loading'; // loading, intro, playing, gameover, highscore
+let highScores = [];
+let playerName = '';
+let scoreEntered = false;
+
 const CHAR_WIDTH = 10;
 const CHAR_HEIGHT = 18;
 const SCREEN_COLS = 80;
 const SCREEN_ROWS = 25;
+const SCREEN_WIDTH = SCREEN_COLS * CHAR_WIDTH;
+const SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT;
+
+// Colors
+const BLACK = '#000000';
+const GREEN = '#00ff00';
+const WHITE = '#ffffff';
+const YELLOW = '#ffff00';
+const RED = '#ff6464';
+const CYAN = '#00ffff';
+const MAGENTA = '#ff00ff';
+const ORANGE = '#ffa500';
+const PINK = '#ff69b4';
+const PURPLE = '#9400d3';
+const LIME = '#32ff32';
+const BLUE = '#6464ff';
+
+const PSYCHEDELIC_COLORS = [MAGENTA, CYAN, PINK, PURPLE, ORANGE, LIME, YELLOW, RED, BLUE];
 
 // Sound generation
 function createOscillator(frequency, duration, type = 'square', volume = 0.3) {
@@ -91,6 +115,13 @@ function playAcidSound() {
     }
 }
 
+function playStopwatchSound() {
+    if (!audioContext) return;
+    [800, 600, 800, 600].forEach((freq, i) => {
+        setTimeout(() => createOscillator(freq, 0.05, 'square', 0.25), i * 80);
+    });
+}
+
 // Music
 let musicTimer = 0;
 let currentNote = 0;
@@ -99,6 +130,10 @@ const melody = [
     [392, 0.15], [330, 0.15], [262, 0.3],
     [294, 0.15], [370, 0.15], [440, 0.15], [587, 0.3],
     [440, 0.15], [370, 0.15], [294, 0.3],
+    [330, 0.15], [415, 0.15], [494, 0.15], [659, 0.3],
+    [494, 0.15], [415, 0.15], [330, 0.3],
+    [392, 0.15], [494, 0.15], [587, 0.15], [784, 0.3],
+    [659, 0.15], [587, 0.15], [523, 0.15], [494, 0.3]
 ];
 
 function playMusic() {
@@ -112,19 +147,54 @@ function playMusic() {
     }
 }
 
+// High score management
+function loadHighScores() {
+    try {
+        highScores = JSON.parse(localStorage.getItem('asciiRunnerHighScores') || '[]');
+    } catch {
+        highScores = [];
+    }
+    return highScores;
+}
+
+function saveHighScores() {
+    try {
+        localStorage.setItem('asciiRunnerHighScores', JSON.stringify(highScores));
+    } catch {
+        // Ignore storage errors
+    }
+}
+
+function isHighScore(score) {
+    if (highScores.length < 5) return true;
+    return score > Math.min(...highScores.map(s => s.score));
+}
+
+function addHighScore(name, score) {
+    highScores.push({ name: name.toUpperCase(), score });
+    highScores.sort((a, b) => b.score - a.score);
+    highScores = highScores.slice(0, 5);
+    saveHighScores();
+
+    // Update engine high score
+    if (gameEngine && score > gameEngine.high_score) {
+        gameEngine.high_score = score;
+    }
+}
+
 // Initialize Pyodide and game engine
 async function initGame() {
     // Show loading message
     const loadingDiv = document.createElement('div');
     loadingDiv.id = 'loading';
-    loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#0f0;font-family:monospace;font-size:20px;';
-    loadingDiv.textContent = 'Loading Pyodide...';
+    loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#0f0;font-family:monospace;font-size:20px;text-align:center;';
+    loadingDiv.innerHTML = 'Loading Pyodide...<br><span style="font-size:12px;color:#666;">First load may take a moment</span>';
     document.body.appendChild(loadingDiv);
 
     try {
         // Load Pyodide
         pyodide = await loadPyodide();
-        loadingDiv.textContent = 'Loading game engine...';
+        loadingDiv.innerHTML = 'Loading game engine...';
 
         // Fetch and load game_engine.py
         const response = await fetch('../game_engine.py');
@@ -134,11 +204,17 @@ async function initGame() {
         await pyodide.runPythonAsync(engineCode);
 
         // Create game instance
-        await pyodide.runPythonAsync(`
-game = GameEngine()
-`);
+        await pyodide.runPythonAsync(`game = GameEngine()`);
 
         gameEngine = pyodide.globals.get('game');
+
+        // Load high scores
+        loadHighScores();
+
+        // Set high score in engine
+        if (highScores.length > 0) {
+            gameEngine.high_score = highScores[0].score;
+        }
 
         // Remove loading message
         loadingDiv.remove();
@@ -149,15 +225,14 @@ game = GameEngine()
         // Setup input
         setupInput();
 
-        // Initialize audio on first interaction
-        document.addEventListener('click', initAudio, { once: true });
-        document.addEventListener('keydown', initAudio, { once: true });
+        // Go to intro
+        gameState = 'intro';
 
         // Start game loop
         requestAnimationFrame(gameLoop);
 
     } catch (error) {
-        loadingDiv.textContent = 'Error loading game: ' + error.message;
+        loadingDiv.innerHTML = 'Error loading game:<br>' + error.message;
         console.error('Failed to initialize game:', error);
     }
 }
@@ -169,125 +244,273 @@ function initAudio() {
 }
 
 function setupCanvas() {
-    // Use desktop canvas or mobile canvas based on screen
-    const isMobile = window.innerWidth <= 900;
-    canvas = document.getElementById(isMobile ? 'mobileGameCanvas' : 'gameCanvas');
+    // Always use the fullscreen mobile canvas for better scaling
+    canvas = document.getElementById('mobileGameCanvas');
 
-    if (!canvas) {
-        canvas = document.createElement('canvas');
-        document.body.appendChild(canvas);
-    }
+    // Hide TV container, show fullscreen
+    const tvContainer = document.querySelector('.tv-container');
+    const mobileContainer = document.getElementById('mobile-game-container');
+    const instructions = document.querySelector('.instructions');
 
-    canvas.width = SCREEN_COLS * CHAR_WIDTH;
-    canvas.height = SCREEN_ROWS * CHAR_HEIGHT;
+    if (tvContainer) tvContainer.style.display = 'none';
+    if (mobileContainer) mobileContainer.style.display = 'block';
+    if (instructions) instructions.style.display = 'none';
+
+    canvas.width = SCREEN_WIDTH;
+    canvas.height = SCREEN_HEIGHT;
+
+    // Scale to fit window
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
     ctx = canvas.getContext('2d');
-    ctx.font = '14px Consolas, monospace';
+    ctx.font = '14px Consolas, "Courier New", monospace';
     ctx.textBaseline = 'top';
 }
 
-function setupInput() {
-    let lastDied = false;
+function resizeCanvas() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
-    document.addEventListener('keydown', async (e) => {
+    const gameAspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+    const screenAspect = width / height;
+
+    let canvasWidth, canvasHeight;
+
+    if (screenAspect > gameAspect) {
+        canvasHeight = height;
+        canvasWidth = height * gameAspect;
+    } else {
+        canvasWidth = width;
+        canvasHeight = width / gameAspect;
+    }
+
+    canvas.style.width = canvasWidth + 'px';
+    canvas.style.height = canvasHeight + 'px';
+    canvas.style.position = 'absolute';
+    canvas.style.left = ((width - canvasWidth) / 2) + 'px';
+    canvas.style.top = ((height - canvasHeight) / 2) + 'px';
+}
+
+function setupInput() {
+    document.addEventListener('keydown', (e) => {
+        initAudio();
+
         if (e.code === 'Space') {
             e.preventDefault();
-
-            const state = gameEngine.get_state().toJs();
-
-            if (state.game_over) {
-                gameEngine.reset();
-                lastDied = false;
-            } else {
-                // Fire weapon
-                const fired = gameEngine.fire_weapon();
-                if (fired) playShootSound();
-
-                // Jump
-                const jumped = gameEngine.player.jump();
-                if (jumped) playJumpSound();
-            }
+            handleAction();
         } else if (e.code === 'Escape') {
-            // Could add pause/quit functionality
+            if (gameState === 'playing' || gameState === 'gameover') {
+                gameState = 'intro';
+                gameEngine.reset();
+                scoreEntered = false;
+                playerName = '';
+            }
+        } else if (gameState === 'highscore') {
+            // Name entry
+            if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+                if (playerName.length > 0) {
+                    const state = gameEngine.get_state().toJs();
+                    addHighScore(playerName, state.score);
+                    gameState = 'gameover';
+                    scoreEntered = true;
+                }
+            } else if (e.code === 'Backspace') {
+                playerName = playerName.slice(0, -1);
+            } else if (e.key.length === 1 && playerName.length < 5) {
+                const char = e.key.toUpperCase();
+                if (/[A-Z0-9]/.test(char)) {
+                    playerName += char;
+                }
+            }
         }
     });
 
-    // Touch controls for mobile
-    canvas.addEventListener('touchstart', async (e) => {
+    // Touch controls
+    canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
         initAudio();
 
-        const state = gameEngine.get_state().toJs();
-
-        if (state.game_over) {
-            gameEngine.reset();
-        } else {
-            const fired = gameEngine.fire_weapon();
-            if (fired) playShootSound();
-
-            const jumped = gameEngine.player.jump();
-            if (jumped) playJumpSound();
+        // Request fullscreen on mobile
+        if (!document.fullscreenElement) {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen().catch(() => {});
+            }
         }
+
+        handleAction();
     });
+}
+
+function handleAction() {
+    if (gameState === 'intro') {
+        gameState = 'playing';
+        gameEngine.reset();
+        scoreEntered = false;
+        playerName = '';
+    } else if (gameState === 'playing') {
+        // Fire weapon
+        const fired = gameEngine.fire_weapon();
+        if (fired) playShootSound();
+
+        // Jump
+        const jumped = gameEngine.player.jump();
+        if (jumped) playJumpSound();
+    } else if (gameState === 'gameover') {
+        gameState = 'playing';
+        gameEngine.reset();
+        scoreEntered = false;
+        playerName = '';
+    } else if (gameState === 'highscore') {
+        // Touch to submit name if we have one
+        if (playerName.length > 0) {
+            const state = gameEngine.get_state().toJs();
+            addHighScore(playerName, state.score);
+            gameState = 'gameover';
+            scoreEntered = true;
+        }
+    }
 }
 
 // Convert Python color tuple to CSS
 function colorToCSS(color) {
     if (!color || color.length < 3) return '#000';
-    const r = color[0];
-    const g = color[1];
-    const b = color[2];
-    return `rgb(${r},${g},${b})`;
+    return `rgb(${color[0]},${color[1]},${color[2]})`;
 }
 
 let lastDied = false;
+let frame = 0;
 
 function gameLoop() {
-    // Update game
-    const events = gameEngine.update().toJs();
+    frame++;
 
-    // Play sounds based on events
-    if (events.died && !lastDied) {
-        playDeathSound();
-    }
-    lastDied = events.died || false;
-
-    if (events.farted) {
-        playFartSound();
-    }
-
-    const collected = events.collected || [];
-    for (const powerupType of collected) {
-        playPickupSound();
-        if (powerupType === 'acid') {
-            playAcidSound();
-        }
-    }
-
-    // Play music
-    if (!events.game_over) {
+    if (gameState === 'intro') {
+        renderIntro();
         playMusic();
-    }
+    } else if (gameState === 'playing') {
+        // Update game
+        const events = gameEngine.update().toJs();
 
-    // Render
-    render();
+        // Play sounds based on events
+        if (events.died && !lastDied) {
+            playDeathSound();
+
+            // Check for high score
+            const state = gameEngine.get_state().toJs();
+            if (isHighScore(state.score)) {
+                gameState = 'highscore';
+            } else {
+                gameState = 'gameover';
+                scoreEntered = true;
+            }
+        }
+        lastDied = events.died || false;
+
+        if (events.farted) {
+            playFartSound();
+        }
+
+        const collected = events.collected || [];
+        for (const powerupType of collected) {
+            playPickupSound();
+            if (powerupType === 'acid') {
+                playAcidSound();
+            } else if (powerupType === 'stopwatch') {
+                playStopwatchSound();
+            }
+        }
+
+        // Play music
+        playMusic();
+
+        // Render game
+        renderGame();
+    } else if (gameState === 'gameover') {
+        renderGameOver();
+    } else if (gameState === 'highscore') {
+        renderHighScoreEntry();
+    }
 
     animationId = requestAnimationFrame(gameLoop);
 }
 
-function render() {
-    // Clear screen
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+function renderIntro() {
+    ctx.fillStyle = BLACK;
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    const state = gameEngine.get_state().toJs();
+    // Title
+    const titleLines = [
+        "    ___   _____ ______________   ____  __  ___   ___   ______________",
+        "   /   | / ___// ____/  _/  _/  / __ \\/ / / / | / / | / / ____/ __ \\",
+        "  / /| | \\__ \\/ /    / / / /   / /_/ / / / /  |/ /  |/ / __/ / /_/ /",
+        " / ___ |___/ / /____/ /_/ /   / _, _/ /_/ / /|  / /|  / /___/ _, _/ ",
+        "/_/  |_/____/\\____/___/___/  /_/ |_|\\____/_/ |_/_/ |_/_____/_/ |_|  "
+    ];
 
-    // Get appropriate buffer
-    let buffer;
-    if (state.game_over) {
-        buffer = gameEngine.get_game_over_buffer().toJs();
+    const colors = [CYAN, MAGENTA, YELLOW, GREEN, CYAN];
+    titleLines.forEach((line, i) => {
+        ctx.fillStyle = colors[i];
+        ctx.fillText(line, 50, (i + 2) * CHAR_HEIGHT);
+    });
+
+    // Controls box
+    const controls = [
+        "+-----------------------------------+",
+        "|     PRESS  SPACE  TO  START       |",
+        "|                                   |",
+        "|   [SPACE] - Jump & Shoot          |",
+        "|   [ESC]   - Quit                  |",
+        "+-----------------------------------+"
+    ];
+
+    ctx.fillStyle = GREEN;
+    controls.forEach((line, i) => {
+        ctx.fillText(line, 100, (8 + i) * CHAR_HEIGHT);
+    });
+
+    // Powerups info
+    const powerups = [
+        "POWERUPS (run into to collect):",
+        "[=> Gun (10 shots)  <J> Jetpack (10)",
+        "{B} Beans (farts!)  <*> Acid Trip",
+        "(O) Stopwatch (slow time)"
+    ];
+
+    powerups.forEach((line, i) => {
+        ctx.fillStyle = i === 0 ? ORANGE : WHITE;
+        ctx.fillText(line, 100, (15 + i) * CHAR_HEIGHT);
+    });
+
+    // High scores
+    ctx.fillStyle = YELLOW;
+    ctx.fillText("HIGH SCORES:", 500, 8 * CHAR_HEIGHT);
+
+    if (highScores.length > 0) {
+        highScores.slice(0, 5).forEach((hs, i) => {
+            ctx.fillStyle = WHITE;
+            const text = `${i + 1}. ${hs.name.padEnd(5)} ${String(hs.score).padStart(6)}`;
+            ctx.fillText(text, 500, (9 + i) * CHAR_HEIGHT);
+        });
     } else {
-        buffer = gameEngine.get_screen_buffer().toJs();
+        ctx.fillStyle = WHITE;
+        ctx.fillText("No scores yet!", 500, 9 * CHAR_HEIGHT);
     }
+
+    // Blinking prompt
+    if (Math.floor(frame / 30) % 2 === 0) {
+        ctx.fillStyle = CYAN;
+        ctx.fillText(">>> PRESS SPACE <<<", 280, 22 * CHAR_HEIGHT);
+    }
+}
+
+function renderGame() {
+    // Clear screen
+    ctx.fillStyle = BLACK;
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    // Get screen buffer from Python engine
+    const buffer = gameEngine.get_screen_buffer().toJs();
 
     // Draw buffer
     for (let y = 0; y < buffer.length; y++) {
@@ -304,63 +527,136 @@ function render() {
         }
     }
 
-    // Draw HUD if not game over
-    if (!state.game_over) {
-        // Score
-        ctx.fillStyle = '#ff0';
-        ctx.fillText(`Score: ${state.score}`, canvas.width - 110, 5);
+    // Draw HUD
+    const state = gameEngine.get_state().toJs();
 
-        // Jumps
-        const jumpsLeft = state.player.jumps_left;
-        ctx.fillStyle = '#fff';
-        ctx.fillText(`Jumps: ${'*'.repeat(jumpsLeft)}`, canvas.width - 110, 23);
+    // Score
+    ctx.fillStyle = YELLOW;
+    ctx.fillText(`Score: ${state.score}`, SCREEN_WIDTH - 120, 5);
 
-        // Power-up indicators
-        let yOffset = 5;
+    // Jumps with asterisks
+    const jumpsLeft = state.player.jumps_left;
+    const maxJumps = state.player.jetpack_jumps > 0 ? 2 : 1;
+    ctx.fillStyle = WHITE;
+    ctx.fillText(`Jumps: ${'*'.repeat(jumpsLeft)}${'-'.repeat(maxJumps - jumpsLeft)}`, SCREEN_WIDTH - 120, 23);
 
-        if (state.player.ammo > 0) {
-            ctx.fillStyle = '#ffa500';
-            ctx.fillText(`[=> x${state.player.ammo}`, 10, yOffset);
-            yOffset += 18;
+    // Power-up indicators
+    let yOffset = 5;
+
+    if (state.player.ammo > 0) {
+        ctx.fillStyle = ORANGE;
+        ctx.fillText(`[=> x${state.player.ammo}`, 10, yOffset);
+        yOffset += 18;
+    }
+
+    if (state.player.jetpack_jumps > 0) {
+        ctx.fillStyle = CYAN;
+        ctx.fillText(`<J> x${state.player.jetpack_jumps}`, 10, yOffset);
+        yOffset += 18;
+    }
+
+    if (state.player.has_beans) {
+        const secs = Math.floor(state.player.beans_timer / 60);
+        ctx.fillStyle = LIME;
+        ctx.fillText(`{B} ${secs}s`, 10, yOffset);
+        yOffset += 18;
+    }
+
+    if (state.player.acid_timer > 0) {
+        const secs = Math.floor(state.player.acid_timer / 60);
+        const acidLevel = state.player.acid_level;
+
+        if (acidLevel === 3) {
+            ctx.fillStyle = PSYCHEDELIC_COLORS[Math.floor(frame / 5) % PSYCHEDELIC_COLORS.length];
+            ctx.fillText(`NIRVANA ${secs}s`, 10, yOffset);
+        } else if (acidLevel === 2) {
+            ctx.fillStyle = YELLOW;
+            ctx.fillText(`TRIPPY ${secs}s`, 10, yOffset);
+        } else {
+            ctx.fillStyle = MAGENTA;
+            ctx.fillText(`<*> ${secs}s`, 10, yOffset);
         }
+        yOffset += 18;
+    }
 
-        if (state.player.jetpack_jumps > 0) {
-            ctx.fillStyle = '#0ff';
-            ctx.fillText(`<J> x${state.player.jetpack_jumps}`, 10, yOffset);
-            yOffset += 18;
-        }
+    if (state.stopwatch_timer > 0) {
+        const secs = Math.floor(state.stopwatch_timer / 60);
+        ctx.fillStyle = YELLOW;
+        ctx.fillText(`(O) ${secs}s`, 10, yOffset);
+    }
+}
 
-        if (state.player.has_beans) {
-            const secs = Math.floor(state.player.beans_timer / 60);
-            ctx.fillStyle = '#0f0';
-            ctx.fillText(`{B} ${secs}s`, 10, yOffset);
-            yOffset += 18;
-        }
+function renderGameOver() {
+    // Clear screen
+    ctx.fillStyle = BLACK;
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-        if (state.player.acid_timer > 0) {
-            const secs = Math.floor(state.player.acid_timer / 60);
-            const acidLevel = state.player.acid_level;
+    // Get game over buffer from Python engine
+    const buffer = gameEngine.get_game_over_buffer().toJs();
 
-            if (acidLevel === 3) {
-                const colors = ['#f0f', '#0ff', '#ff69b4', '#9400d3', '#ffa500', '#32ff32', '#ff0', '#ff6464', '#6464ff'];
-                ctx.fillStyle = colors[Math.floor(Date.now() / 100) % colors.length];
-                ctx.fillText(`NIRVANA ${secs}s`, 10, yOffset);
-            } else if (acidLevel === 2) {
-                ctx.fillStyle = '#ff0';
-                ctx.fillText(`EMOJI ${secs}s`, 10, yOffset);
-            } else {
-                ctx.fillStyle = '#f0f';
-                ctx.fillText(`<*> ${secs}s`, 10, yOffset);
+    // Draw buffer
+    for (let y = 0; y < buffer.length; y++) {
+        const row = buffer[y];
+        for (let x = 0; x < row.length; x++) {
+            const cell = row[x];
+            const char = cell[0];
+            const color = cell[1];
+
+            if (char && char !== ' ') {
+                ctx.fillStyle = colorToCSS(color);
+                ctx.fillText(char, x * CHAR_WIDTH, y * CHAR_HEIGHT);
             }
-            yOffset += 18;
-        }
-
-        if (state.stopwatch_timer > 0) {
-            const secs = Math.floor(state.stopwatch_timer / 60);
-            ctx.fillStyle = '#ff0';
-            ctx.fillText(`(O) ${secs}s`, 10, yOffset);
         }
     }
+}
+
+function renderHighScoreEntry() {
+    ctx.fillStyle = BLACK;
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const state = gameEngine.get_state().toJs();
+
+    // Title
+    ctx.fillStyle = YELLOW;
+    ctx.font = '28px Consolas, monospace';
+    ctx.fillText("NEW HIGH SCORE!", SCREEN_WIDTH / 2 - 130, 80);
+
+    // Score
+    ctx.fillStyle = GREEN;
+    ctx.font = '20px Consolas, monospace';
+    ctx.fillText(`Score: ${state.score}`, SCREEN_WIDTH / 2 - 60, 140);
+
+    // Prompt
+    ctx.fillStyle = WHITE;
+    ctx.font = '14px Consolas, monospace';
+    ctx.fillText("Enter your name (5 chars max):", SCREEN_WIDTH / 2 - 130, 200);
+
+    // Name entry box
+    ctx.strokeStyle = CYAN;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(SCREEN_WIDTH / 2 - 60, 230, 120, 40);
+
+    // Name with cursor
+    const displayName = playerName + (Math.floor(frame / 15) % 2 === 0 ? '_' : ' ');
+    ctx.fillStyle = CYAN;
+    ctx.font = '24px Consolas, monospace';
+    ctx.fillText(displayName.padEnd(6), SCREEN_WIDTH / 2 - 50, 240);
+
+    // Instructions
+    ctx.fillStyle = WHITE;
+    ctx.font = '14px Consolas, monospace';
+    ctx.fillText("Type name, then press ENTER", SCREEN_WIDTH / 2 - 120, 300);
+    ctx.fillText("(or TAP on mobile)", SCREEN_WIDTH / 2 - 80, 320);
+
+    // Show current high scores
+    ctx.fillStyle = YELLOW;
+    ctx.fillText("Current Top Scores:", SCREEN_WIDTH / 2 - 80, 370);
+
+    highScores.slice(0, 3).forEach((hs, i) => {
+        ctx.fillStyle = WHITE;
+        const text = `${i + 1}. ${hs.name.padEnd(5)} ${String(hs.score).padStart(6)}`;
+        ctx.fillText(text, SCREEN_WIDTH / 2 - 70, (390 + i * 18));
+    });
 }
 
 // Start the game when page loads
