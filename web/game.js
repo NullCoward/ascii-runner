@@ -10,16 +10,28 @@ const SCREEN_WIDTH = SCREEN_COLS * CHAR_WIDTH;
 const SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT;
 
 const GROUND_HEIGHT = 20;
-const GRAVITY = 0.03;
-const JUMP_FORCE = -1.1;
 const MAX_JUMPS = 1;
 const BASE_SCROLL_SPEED = 0.3;
 const SPEED_PROGRESSION = 3000; // Score needed to double speed
+const JUMP_CLEARANCE_MULTIPLIER = 1.2; // Jump 1.2x the tallest obstacle
 
-// Jump physics calculated for 2x largest obstacle (house: 8 tall, 10 wide)
-// Height: 1.1^2 / (2*0.03) = 20 rows (need 16)
-// Time: 1.1/0.03 * 2 = 73 frames
-// Horizontal: 73 * 0.3 = 22 cols (need 20)
+// Calculate max obstacle height dynamically
+function getMaxObstacleHeight() {
+    const allObstacles = [
+        ...OBSTACLE_CHARS_EASY,
+        BIRD_CHAR, COW_CHAR, HOUSE_CHAR, CACTUS_CHAR, SPIKE_CHAR
+    ];
+    return Math.max(...allObstacles.map(obs => obs.length));
+}
+
+// Calculate jump physics based on obstacle size
+const MAX_OBSTACLE_HEIGHT = getMaxObstacleHeight();
+const DESIRED_JUMP_HEIGHT = MAX_OBSTACLE_HEIGHT * JUMP_CLEARANCE_MULTIPLIER;
+const GRAVITY = 0.05; // Base gravity for good feel
+const JUMP_FORCE = -Math.sqrt(2 * GRAVITY * DESIRED_JUMP_HEIGHT); // v = sqrt(2gh)
+
+// Obstacles with flat tops that can be stood on
+const FLAT_TOP_OBSTACLES = ['easy']; // Crates, barrels, rock piles have flat tops
 
 // Colors
 const BLACK = '#000000';
@@ -804,16 +816,32 @@ class Game {
         const py = Math.floor(this.player.y);
         const playerWidth = this.player.width;
         const playerHeight = this.player.height;
+        const playerBottom = py + playerHeight;
 
         for (const obs of this.obstacles) {
             if (!obs.alive) continue;
             const ox = Math.floor(obs.x);
             const oy = Math.floor(obs.y);
-            if (px < ox + obs.width &&
-                px + playerWidth > ox &&
-                py < oy + obs.height &&
-                py + playerHeight > oy) {
-                return true;
+
+            // Check if horizontally overlapping
+            if (px < ox + obs.width && px + playerWidth > ox) {
+                // Check if vertically overlapping
+                if (py < oy + obs.height && playerBottom > oy) {
+                    // Check if this is a flat-top obstacle we can stand on
+                    if (FLAT_TOP_OBSTACLES.includes(obs.obstacleType)) {
+                        // Landing on top: player bottom near obstacle top, falling down
+                        const landingOnTop = playerBottom <= oy + 2 && this.player.velY >= 0;
+                        if (landingOnTop) {
+                            // Land on the obstacle
+                            this.player.y = oy - playerHeight;
+                            this.player.velY = 0;
+                            this.player.jumpsLeft = this.player.getMaxJumps();
+                            this.player.onGround = true;
+                            continue; // Not a collision, we're standing on it
+                        }
+                    }
+                    return true; // Collision
+                }
             }
         }
         return false;

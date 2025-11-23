@@ -50,16 +50,13 @@ SCREEN_WIDTH = SCREEN_COLS * CHAR_WIDTH
 SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT
 
 GROUND_HEIGHT = 20
-GRAVITY = 0.03
-JUMP_FORCE = -1.1
 MAX_JUMPS = 1
 BASE_SCROLL_SPEED = 0.3
 SPEED_PROGRESSION = 3000  # Score needed to double speed
+JUMP_CLEARANCE_MULTIPLIER = 1.2  # Jump 1.2x the tallest obstacle
 
-# Jump physics calculated for 2x largest obstacle (house: 8 tall, 10 wide)
-# Height: 1.1^2 / (2*0.03) = 20 rows (need 16)
-# Time: 1.1/0.03 * 2 = 73 frames
-# Horizontal: 73 * 0.3 = 22 cols (need 20)
+# Obstacles with flat tops that can be stood on
+FLAT_TOP_OBSTACLES = ["easy"]  # Crates, barrels, rock piles have flat tops
 
 # Colors
 BLACK = (0, 0, 0)
@@ -166,6 +163,16 @@ SPIKE_CHAR = [
     " /\\ /\\ ",
     "/\\/\\/\\",
 ]
+
+# Calculate max obstacle height dynamically
+def get_max_obstacle_height():
+    all_obstacles = OBSTACLE_CHARS_EASY + [BIRD_CHAR, COW_CHAR, HOUSE_CHAR, CACTUS_CHAR, SPIKE_CHAR]
+    return max(len(obs) for obs in all_obstacles)
+
+MAX_OBSTACLE_HEIGHT = get_max_obstacle_height()
+DESIRED_JUMP_HEIGHT = MAX_OBSTACLE_HEIGHT * JUMP_CLEARANCE_MULTIPLIER
+GRAVITY = 0.05  # Base gravity for good feel
+JUMP_FORCE = -math.sqrt(2 * GRAVITY * DESIRED_JUMP_HEIGHT)  # v = sqrt(2gh)
 
 # Powerup types
 POWERUP_PISTOL = "pistol"
@@ -599,15 +606,29 @@ class Game:
     def check_collision(self):
         px, py = int(self.player.x), int(self.player.y)
         player_width, player_height = self.player.width, self.player.height
+        player_bottom = py + player_height
+
         for obs in self.obstacles:
             if not obs.alive:
                 continue
             ox, oy = int(obs.x), int(obs.y)
-            if (px < ox + obs.width and
-                px + player_width > ox and
-                py < oy + obs.height and
-                py + player_height > oy):
-                return True
+
+            # Check if horizontally overlapping
+            if px < ox + obs.width and px + player_width > ox:
+                # Check if vertically overlapping
+                if py < oy + obs.height and player_bottom > oy:
+                    # Check if this is a flat-top obstacle we can stand on
+                    if obs.obstacle_type in FLAT_TOP_OBSTACLES:
+                        # Landing on top: player bottom near obstacle top, falling down
+                        landing_on_top = player_bottom <= oy + 2 and self.player.vel_y >= 0
+                        if landing_on_top:
+                            # Land on the obstacle
+                            self.player.y = oy - player_height
+                            self.player.vel_y = 0
+                            self.player.jumps_left = self.player.get_max_jumps()
+                            self.player.on_ground = True
+                            continue  # Not a collision, we're standing on it
+                    return True  # Collision
         return False
 
     def check_powerup_collision(self):
