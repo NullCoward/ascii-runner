@@ -1273,32 +1273,31 @@ class GameRenderer {
         this.canvas.width = SCREEN_WIDTH;
         this.canvas.height = SCREEN_HEIGHT;
 
-        // For mobile, calculate and set display size
-        if (this.isMobileCanvas) {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
+        // Calculate and set display size to fill window
+        const width = window.innerWidth;
+        const height = window.innerHeight;
 
-            // Calculate scale to fit screen while maintaining aspect ratio
-            const gameAspect = SCREEN_WIDTH / SCREEN_HEIGHT;
-            const screenAspect = width / height;
+        // Calculate scale to fit screen while maintaining aspect ratio
+        const gameAspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+        const screenAspect = width / height;
 
-            let canvasWidth, canvasHeight;
+        let canvasWidth, canvasHeight;
 
-            if (screenAspect > gameAspect) {
-                canvasHeight = height;
-                canvasWidth = height * gameAspect;
-            } else {
-                canvasWidth = width;
-                canvasHeight = width / gameAspect;
-            }
-
-            this.canvas.style.width = canvasWidth + 'px';
-            this.canvas.style.height = canvasHeight + 'px';
-            this.canvas.style.position = 'absolute';
-            this.canvas.style.left = ((width - canvasWidth) / 2) + 'px';
-            this.canvas.style.top = ((height - canvasHeight) / 2) + 'px';
+        if (screenAspect > gameAspect) {
+            // Screen is wider - fit to height
+            canvasHeight = height;
+            canvasWidth = height * gameAspect;
+        } else {
+            // Screen is taller - fit to width
+            canvasWidth = width;
+            canvasHeight = width / gameAspect;
         }
-        // Desktop uses CSS-defined sizes
+
+        this.canvas.style.width = canvasWidth + 'px';
+        this.canvas.style.height = canvasHeight + 'px';
+        this.canvas.style.position = 'absolute';
+        this.canvas.style.left = ((width - canvasWidth) / 2) + 'px';
+        this.canvas.style.top = ((height - canvasHeight) / 2) + 'px';
 
         // Update font
         this.ctx.font = '14px Consolas, "Courier New", monospace';
@@ -1461,12 +1460,17 @@ class GameController {
         // Detect mobile
         this.isMobile = this.detectMobile();
 
-        // Select appropriate canvas based on device
-        if (this.isMobile) {
-            this.canvas = document.getElementById('mobileGameCanvas');
-        } else {
-            this.canvas = document.getElementById('gameCanvas');
-        }
+        // Always use mobile canvas for fullscreen scaling
+        this.canvas = document.getElementById('mobileGameCanvas');
+
+        // Hide TV container and show fullscreen container
+        const tvContainer = document.querySelector('.tv-container');
+        const mobileContainer = document.getElementById('mobile-game-container');
+        const instructions = document.querySelector('.instructions');
+
+        if (tvContainer) tvContainer.style.display = 'none';
+        if (mobileContainer) mobileContainer.style.display = 'block';
+        if (instructions) instructions.style.display = 'none';
 
         this.renderer = new GameRenderer(this.canvas);
         this.game = new Game();
@@ -1482,11 +1486,14 @@ class GameController {
 
         this.setupInput();
 
-        // Handle resize
+        // Handle resize - always resize
         window.addEventListener('resize', () => this.handleResize());
         window.addEventListener('orientationchange', () => {
             setTimeout(() => this.handleResize(), 100);
         });
+
+        // Initial resize
+        this.handleResize();
 
         this.gameLoop(0);
     }
@@ -1499,8 +1506,17 @@ class GameController {
     }
 
     handleResize() {
-        if (this.isMobile) {
-            this.renderer.setupCanvas();
+        this.renderer.setupCanvas();
+    }
+
+    requestFullscreen() {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+            elem.requestFullscreen();
+        } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+        } else if (elem.msRequestFullscreen) {
+            elem.msRequestFullscreen();
         }
     }
 
@@ -1552,6 +1568,11 @@ class GameController {
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             initAudio();
+
+            // Request fullscreen on first touch
+            if (this.isMobile && !document.fullscreenElement) {
+                this.requestFullscreen();
+            }
 
             if (this.state === 'intro') {
                 this.state = 'playing';
