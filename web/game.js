@@ -1181,8 +1181,18 @@ class GameController {
 
                 if (this.game.gameOver && !this.scoreEntered) {
                     if (this.game.isHighScore(this.game.score)) {
-                        this.state = 'highscore';
-                        this.playerName = '';
+                        // On mobile, use prompt for name entry
+                        if (this.isMobile) {
+                            const name = prompt(`New High Score: ${this.game.score}\nEnter your name (5 chars):`, 'PLAYER');
+                            if (name && name.trim()) {
+                                this.game.addHighScore(name.toUpperCase().replace(/[^A-Z0-9]/g, '').padEnd(5).slice(0, 5), this.game.score);
+                            }
+                            this.state = 'gameover';
+                            this.scoreEntered = true;
+                        } else {
+                            this.state = 'highscore';
+                            this.playerName = '';
+                        }
                     } else {
                         this.state = 'gameover';
                         this.scoreEntered = true;
