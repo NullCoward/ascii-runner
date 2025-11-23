@@ -10,8 +10,8 @@ const SCREEN_WIDTH = SCREEN_COLS * CHAR_WIDTH;
 const SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT;
 
 const GROUND_HEIGHT = 20;
-const GRAVITY = 0.10;
-const JUMP_FORCE = -1.1;
+const GRAVITY = 0.07;
+const JUMP_FORCE = -1.0;
 const MAX_JUMPS = 1;
 const BASE_SCROLL_SPEED = 0.3;
 const SPEED_PROGRESSION = 3000; // Score needed to double speed
@@ -774,9 +774,10 @@ class Game {
             }
 
             this.obstacles.push(new Obstacle(SCREEN_COLS, obstacleType));
-            this.spawnTimer = Math.floor(Math.random() * 46) + 25 + Math.floor(Math.random() * 36);
+            // More spacing for larger obstacles
+            this.spawnTimer = Math.floor(Math.random() * 71) + 50 + Math.floor(Math.random() * 51);
             if (this.spawnDelay > 15) {
-                this.spawnDelay -= 0.08;
+                this.spawnDelay -= 0.05;
             }
         } else {
             this.spawnTimer -= 1;

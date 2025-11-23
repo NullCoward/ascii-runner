@@ -50,8 +50,8 @@ SCREEN_WIDTH = SCREEN_COLS * CHAR_WIDTH
 SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT
 
 GROUND_HEIGHT = 20
-GRAVITY = 0.10
-JUMP_FORCE = -1.1
+GRAVITY = 0.07
+JUMP_FORCE = -1.0
 MAX_JUMPS = 1
 BASE_SCROLL_SPEED = 0.3
 SPEED_PROGRESSION = 3000  # Score needed to double speed
@@ -577,10 +577,10 @@ class Game:
                     obstacle_type = "spike"
 
             self.obstacles.append(Obstacle(SCREEN_COLS, obstacle_type))
-            # More random spacing
-            self.spawn_timer = random.randint(25, 70) + random.randint(0, 35)
+            # More random spacing - increased for larger obstacles
+            self.spawn_timer = random.randint(50, 120) + random.randint(0, 50)
             if self.spawn_delay > 15:
-                self.spawn_delay -= 0.08
+                self.spawn_delay -= 0.05
         else:
             self.spawn_timer -= 1
 
