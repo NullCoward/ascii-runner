@@ -997,7 +997,17 @@ class GameRenderer {
 // Main game controller
 class GameController {
     constructor() {
-        this.canvas = document.getElementById('gameCanvas');
+        // Detect mobile
+        this.isMobile = this.detectMobile();
+
+        // Select appropriate canvas
+        if (this.isMobile) {
+            this.canvas = document.getElementById('mobileGameCanvas');
+            this.setupMobileCanvas();
+        } else {
+            this.canvas = document.getElementById('gameCanvas');
+        }
+
         this.renderer = new GameRenderer(this.canvas);
         this.game = new Game();
         this.state = 'intro'; // intro, playing, gameover, highscore
@@ -1011,7 +1021,56 @@ class GameController {
         this.accumulator = 0;
 
         this.setupInput();
+
+        // Handle resize for mobile
+        if (this.isMobile) {
+            window.addEventListener('resize', () => this.setupMobileCanvas());
+            window.addEventListener('orientationchange', () => {
+                setTimeout(() => this.setupMobileCanvas(), 100);
+            });
+        }
+
         this.gameLoop(0);
+    }
+
+    detectMobile() {
+        return (('ontouchstart' in window) ||
+                (navigator.maxTouchPoints > 0) ||
+                (navigator.msMaxTouchPoints > 0)) &&
+               (window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+    }
+
+    setupMobileCanvas() {
+        const container = document.getElementById('mobile-game-container');
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        // Calculate scale to fill screen while maintaining aspect ratio
+        const gameAspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+        const screenAspect = width / height;
+
+        let canvasWidth, canvasHeight;
+
+        if (screenAspect > gameAspect) {
+            // Screen is wider than game - fit to height
+            canvasHeight = height;
+            canvasWidth = height * gameAspect;
+        } else {
+            // Screen is taller than game - fit to width
+            canvasWidth = width;
+            canvasHeight = width / gameAspect;
+        }
+
+        // Set canvas internal resolution
+        this.canvas.width = SCREEN_WIDTH;
+        this.canvas.height = SCREEN_HEIGHT;
+
+        // Set canvas display size to fill screen
+        this.canvas.style.width = canvasWidth + 'px';
+        this.canvas.style.height = canvasHeight + 'px';
+        this.canvas.style.position = 'absolute';
+        this.canvas.style.left = ((width - canvasWidth) / 2) + 'px';
+        this.canvas.style.top = ((height - canvasHeight) / 2) + 'px';
     }
 
     setupInput() {

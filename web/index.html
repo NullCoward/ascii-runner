@@ -2,11 +2,28 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="screen-orientation" content="landscape">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>ASCII RUNNER</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Landscape orientation prompt for mobile -->
+    <div id="rotate-prompt">
+        <div class="rotate-content">
+            <div class="rotate-icon">&#x21BB;</div>
+            <p>Please rotate your device to landscape mode</p>
+        </div>
+    </div>
+
+    <!-- Mobile fullscreen game container -->
+    <div id="mobile-game-container">
+        <canvas id="mobileGameCanvas"></canvas>
+    </div>
+
+    <!-- Desktop TV container -->
     <div class="tv-container">
         <div class="tv-frame">
             <div class="tv-screen-wrapper">
