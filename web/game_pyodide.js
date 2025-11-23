@@ -209,7 +209,7 @@ async function initGame() {
         loadingDiv.innerHTML = 'Loading game engine...';
 
         // Fetch and load game_engine.py
-        const response = await fetch('../game_engine.py');
+        const response = await fetch('game_engine.py');
         if (!response.ok) {
             throw new Error(`Failed to fetch game_engine.py: ${response.status}`);
         }
