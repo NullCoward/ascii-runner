@@ -1,0 +1,262 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+}
+
+.tv-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.tv-frame {
+    background: linear-gradient(145deg, #8B4513, #5D3A1A);
+    border-radius: 30px;
+    padding: 40px 40px 20px 40px;
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        inset 0 2px 4px rgba(255, 255, 255, 0.1),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+    position: relative;
+}
+
+.tv-frame::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    border-radius: 25px;
+    border: 3px solid rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+}
+
+.tv-screen-wrapper {
+    background: #111;
+    border-radius: 20px;
+    padding: 15px;
+    box-shadow:
+        inset 0 0 30px rgba(0, 0, 0, 0.8),
+        0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.tv-screen {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+}
+
+#gameCanvas {
+    display: block;
+    width: 800px;
+    height: 450px;
+    border-radius: 8px;
+}
+
+.scanlines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.15),
+        rgba(0, 0, 0, 0.15) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    pointer-events: none;
+    z-index: 10;
+}
+
+.screen-curve {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(
+        ellipse at center,
+        transparent 0%,
+        transparent 70%,
+        rgba(0, 0, 0, 0.3) 100%
+    );
+    pointer-events: none;
+    z-index: 11;
+}
+
+.tv-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 20px;
+    margin-top: 10px;
+}
+
+.tv-brand {
+    color: #D4AF37;
+    font-family: 'Georgia', serif;
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.tv-knobs {
+    display: flex;
+    gap: 20px;
+}
+
+.knob {
+    width: 30px;
+    height: 30px;
+    background: linear-gradient(145deg, #333, #111);
+    border-radius: 50%;
+    box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+    position: relative;
+}
+
+.knob::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 10px;
+    background: #666;
+    border-radius: 2px;
+}
+
+.tv-speaker {
+    width: 60px;
+    height: 40px;
+    background: #222;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.speaker-grille {
+    width: 50px;
+    height: 30px;
+    background: repeating-linear-gradient(
+        90deg,
+        #333,
+        #333 2px,
+        #222 2px,
+        #222 4px
+    );
+    border-radius: 3px;
+}
+
+.tv-stand {
+    display: flex;
+    justify-content: center;
+    gap: 400px;
+    margin-top: -5px;
+}
+
+.stand-leg {
+    width: 40px;
+    height: 60px;
+    background: linear-gradient(145deg, #5D3A1A, #3D2A0A);
+    clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+.instructions {
+    margin-top: 30px;
+    color: #888;
+    font-size: 14px;
+    text-align: center;
+}
+
+.instructions strong {
+    color: #0ff;
+}
+
+/* CRT flicker effect */
+@keyframes flicker {
+    0% { opacity: 0.97; }
+    50% { opacity: 1; }
+    100% { opacity: 0.98; }
+}
+
+.tv-screen {
+    animation: flicker 0.1s infinite;
+}
+
+/* Glow effect when game is active */
+.tv-screen::after {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    background: radial-gradient(
+        ellipse at center,
+        rgba(0, 255, 0, 0.05) 0%,
+        transparent 70%
+    );
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Responsive design */
+@media (max-width: 900px) {
+    .tv-frame {
+        padding: 20px 20px 15px 20px;
+        border-radius: 20px;
+    }
+
+    #gameCanvas {
+        width: 640px;
+        height: 360px;
+    }
+
+    .tv-stand {
+        gap: 300px;
+    }
+}
+
+@media (max-width: 700px) {
+    .tv-frame {
+        padding: 15px 15px 10px 15px;
+        border-radius: 15px;
+    }
+
+    #gameCanvas {
+        width: 480px;
+        height: 270px;
+    }
+
+    .tv-stand {
+        gap: 200px;
+    }
+
+    .stand-leg {
+        width: 30px;
+        height: 40px;
+    }
+}

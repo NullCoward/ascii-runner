@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII RUNNER</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="tv-container">
+        <div class="tv-frame">
+            <div class="tv-screen-wrapper">
+                <div class="tv-screen">
+                    <div class="scanlines"></div>
+                    <div class="screen-curve"></div>
+                    <canvas id="gameCanvas"></canvas>
+                </div>
+            </div>
+            <div class="tv-controls">
+                <div class="tv-brand">RETRO-TRON 3000</div>
+                <div class="tv-knobs">
+                    <div class="knob"></div>
+                    <div class="knob"></div>
+                </div>
+                <div class="tv-speaker">
+                    <div class="speaker-grille"></div>
+                </div>
+            </div>
+        </div>
+        <div class="tv-stand">
+            <div class="stand-leg left"></div>
+            <div class="stand-leg right"></div>
+        </div>
+    </div>
+
+    <div class="instructions">
+        <p><strong>SPACE</strong> - Jump & Shoot | <strong>ESC</strong> - Quit</p>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
