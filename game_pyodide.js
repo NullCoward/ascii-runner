@@ -122,6 +122,13 @@ function playStopwatchSound() {
     });
 }
 
+function playStompSound() {
+    if (!audioContext) return;
+    // Satisfying "boing" sound for stomping enemies
+    createOscillator(150, 0.08, 'square', 0.3);
+    setTimeout(() => createOscillator(300, 0.1, 'square', 0.25), 50);
+}
+
 // Music
 let musicTimer = 0;
 let currentNote = 0;
@@ -441,6 +448,10 @@ function gameLoop() {
                 playFartSound();
             }
 
+            if (events.stomped) {
+                playStompSound();
+            }
+
             const collected = events.collected || [];
             for (const powerupType of collected) {
                 playPickupSound();
@@ -645,6 +656,17 @@ function renderGame() {
         const secs = Math.floor(state.stopwatch_timer / 60);
         ctx.fillStyle = YELLOW;
         ctx.fillText(`(O) ${secs}s`, 10, yOffset);
+        yOffset += 18;
+    }
+
+    // Grace period indicator (post-nirvana invulnerability)
+    if (state.player.grace_period > 0) {
+        const secs = (state.player.grace_period / 60).toFixed(1);
+        // Flashing effect
+        if (Math.floor(frame / 4) % 2 === 0) {
+            ctx.fillStyle = WHITE;
+            ctx.fillText(`PROTECTED ${secs}s`, 10, yOffset);
+        }
     }
 }
 

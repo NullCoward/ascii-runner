@@ -19,6 +19,7 @@ SPEED_PROGRESSION = 2000  # +0.1 speed per 200 points
 JUMP_CLEARANCE_MULTIPLIER = 1.2
 
 FLAT_TOP_OBSTACLES = ["easy"]
+ORGANIC_OBSTACLES = ["bird", "cow"]  # Can be stomped Mario-style
 
 # Colors as RGB tuples (renderer converts to platform format)
 BLACK = (0, 0, 0)
@@ -449,6 +450,7 @@ class Player:
         self.acid_flash_timer = 0
         self.nirvana_flash_timer = 0
         self.was_in_nirvana = False
+        self.grace_period = 0  # Invulnerability after nirvana ends
         self.width = 5
         self.height = 4
 
@@ -464,7 +466,7 @@ class Player:
             return 3
 
     def is_invincible(self):
-        return self.get_acid_level() == 3
+        return self.get_acid_level() == 3 or self.grace_period > 0
 
     def get_max_jumps(self):
         return MAX_JUMPS + (1 if self.jetpack_jumps > 0 else 0)
@@ -483,11 +485,23 @@ class Player:
         self.vel_y = JUMP_FORCE * 0.8
         self.on_ground = False
 
+    def stomp_bounce(self):
+        """Bounce after stomping an enemy Mario-style"""
+        self.vel_y = JUMP_FORCE * 0.6  # Smaller bounce than full jump
+        self.on_ground = False
+
     def update(self):
         current_nirvana = self.get_acid_level() == 3
         if current_nirvana and not self.was_in_nirvana:
             self.nirvana_flash_timer = 60
+        # Start grace period when nirvana ends
+        if self.was_in_nirvana and not current_nirvana:
+            self.grace_period = 120  # 2 seconds at 60fps
         self.was_in_nirvana = current_nirvana
+
+        # Decrement grace period
+        if self.grace_period > 0:
+            self.grace_period -= 1
 
         if self.get_acid_level() == 3:
             target_y = 6
@@ -662,6 +676,7 @@ class GameEngine:
             self.powerup_timer = random.randint(80, 180)
 
     def check_collision(self):
+        """Check for collisions. Returns (collision, stomped) tuple."""
         px, py = int(self.player.x), int(self.player.y)
         player_width, player_height = self.player.width, self.player.height
 
@@ -672,6 +687,8 @@ class GameEngine:
         player_height -= hitbox_padding
         player_bottom = py + player_height
 
+        stomped = False
+
         for obs in self.obstacles:
             if not obs.alive:
                 continue
@@ -679,16 +696,28 @@ class GameEngine:
 
             if px < ox + obs.width and px + player_width > ox:
                 if py < oy + obs.height and player_bottom > oy:
-                    if obs.obstacle_type in FLAT_TOP_OBSTACLES:
-                        landing_on_top = player_bottom <= oy + 2 and self.player.vel_y >= 0
-                        if landing_on_top:
+                    # Check if landing on top
+                    landing_on_top = player_bottom <= oy + 3 and self.player.vel_y >= 0
+
+                    if landing_on_top:
+                        # Stomp organic enemies (Mario-style)
+                        if obs.obstacle_type in ORGANIC_OBSTACLES:
+                            obs.alive = False
+                            self.player.stomp_bounce()
+                            stomped = True
+                            continue
+                        # Land on flat-top obstacles
+                        elif obs.obstacle_type in FLAT_TOP_OBSTACLES:
                             self.player.y = oy - self.player.height
                             self.player.vel_y = 0
                             self.player.jumps_left = self.player.get_max_jumps()
                             self.player.on_ground = True
                             continue
-                    return True
-        return False
+
+                    # Regular collision - death
+                    return (True, stomped)
+
+        return (False, stomped)
 
     def check_powerup_collision(self):
         px, py = int(self.player.x), int(self.player.y)
@@ -838,7 +867,10 @@ class GameEngine:
             self.fart_puffs.append(FartPuff(self.player.x + self.player.width // 2, self.player.y + self.player.height))
             events["farted"] = True
 
-        if self.check_collision() and not self.player.is_invincible():
+        collision, stomped = self.check_collision()
+        events["stomped"] = stomped
+
+        if collision and not self.player.is_invincible():
             self.game_over = True
             events["died"] = True
             events["game_over"] = True
@@ -1057,6 +1089,7 @@ class GameEngine:
                 "beans_timer": self.player.beans_timer,
                 "acid_timer": self.player.acid_timer,
                 "acid_level": self.player.get_acid_level(),
+                "grace_period": self.player.grace_period,
             },
             "stopwatch_timer": self.stopwatch_timer,
             "frame": self.frame,
