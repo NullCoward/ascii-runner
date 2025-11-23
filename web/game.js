@@ -202,7 +202,7 @@ function getMaxObstacleHeight() {
 // Calculate jump physics based on obstacle size
 const MAX_OBSTACLE_HEIGHT = getMaxObstacleHeight();
 const DESIRED_JUMP_HEIGHT = MAX_OBSTACLE_HEIGHT * JUMP_CLEARANCE_MULTIPLIER;
-const GRAVITY = 0.05; // Base gravity for good feel
+const GRAVITY = 0.035; // Lower gravity = more hang time = longer jump
 const JUMP_FORCE = -Math.sqrt(2 * GRAVITY * DESIRED_JUMP_HEIGHT); // v = sqrt(2gh)
 
 // Powerup types

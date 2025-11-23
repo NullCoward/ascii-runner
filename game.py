@@ -171,7 +171,7 @@ def get_max_obstacle_height():
 
 MAX_OBSTACLE_HEIGHT = get_max_obstacle_height()
 DESIRED_JUMP_HEIGHT = MAX_OBSTACLE_HEIGHT * JUMP_CLEARANCE_MULTIPLIER
-GRAVITY = 0.05  # Base gravity for good feel
+GRAVITY = 0.035  # Lower gravity = more hang time = longer jump
 JUMP_FORCE = -math.sqrt(2 * GRAVITY * DESIRED_JUMP_HEIGHT)  # v = sqrt(2gh)
 
 # Powerup types
