@@ -50,10 +50,11 @@ SCREEN_WIDTH = SCREEN_COLS * CHAR_WIDTH
 SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT
 
 GROUND_HEIGHT = 20
-GRAVITY = 0.12
-JUMP_FORCE = -1.2
+GRAVITY = 0.10
+JUMP_FORCE = -1.1
 MAX_JUMPS = 1
-BASE_SCROLL_SPEED = 1
+BASE_SCROLL_SPEED = 0.6
+SPEED_PROGRESSION = 2000  # Score needed to double speed
 
 # Colors
 BLACK = (0, 0, 0)
@@ -72,46 +73,93 @@ BLUE = (100, 100, 255)
 # Psychedelic colors for acid trip
 PSYCHEDELIC_COLORS = [MAGENTA, CYAN, PINK, PURPLE, ORANGE, LIME, YELLOW, RED, BLUE]
 
-# Player character
+# Player character - more detailed
 PLAYER_CHAR = [
-    " O ",
-    "/|\\",
-    "/ \\"
+    "  ,O,  ",
+    " /|X|\\ ",
+    "  |_|  ",
+    " _/ \\_ ",
 ]
 
 PLAYER_JUMP_CHAR = [
-    "\\O/",
-    " | ",
-    "/ \\"
+    " \\,O,/ ",
+    "  |X|  ",
+    "  |_|  ",
+    " /   \\ ",
 ]
 
-# Obstacles - Easy
+# Obstacles - Easy (more detailed)
 OBSTACLE_CHARS_EASY = [
-    ["###", "###", "###"],
-    [" A ", "/|\\", "/_\\"],
-    ["[=]", "[=]", "[=]", "[=]"],
+    # Rock pile
+    [
+        "   ___   ",
+        "  /. .\\  ",
+        " /. . .\\ ",
+        "/_._._._\\",
+    ],
+    # Traffic cone
+    [
+        "   /\\   ",
+        "  /  \\  ",
+        " / || \\ ",
+        "/______\\",
+    ],
+    # Crate stack
+    [
+        " [====] ",
+        " |    | ",
+        " [====] ",
+        " |    | ",
+        " [====] ",
+    ],
+    # Barrel
+    [
+        " .----. ",
+        "(|    |)",
+        " |====| ",
+        "(|    |)",
+        " '----' ",
+    ],
 ]
 
 # Obstacles - Hard (unlocked at higher scores)
 BIRD_CHAR = [
-    "\\v/",
-    " O ",
+    "   ___   ",
+    "\\<(o  )>/",
+    "   ^^    ",
 ]
 
 COW_CHAR = [
-    " ^__^",
-    "(oo) ",
-    " \\/ ",
-    " || ",
+    "   ^__^   ",
+    "  (oo)\\_  ",
+    "  (__)\\  )",
+    "   ||--|| ",
 ]
 
 HOUSE_CHAR = [
-    "  /\\  ",
-    " /  \\ ",
-    "/    \\",
-    "|    |",
-    "|  o |",
-    "|____|",
+    "    /\\    ",
+    "   /  \\   ",
+    "  /    \\  ",
+    " /______\\ ",
+    " |  []  | ",
+    " | .__. | ",
+    " | |  | | ",
+    " |_|__|_| ",
+]
+
+# Cactus (desert obstacle)
+CACTUS_CHAR = [
+    "   |   ",
+    "  \\|/  ",
+    "   |   ",
+    "  \\|   ",
+    "   |   ",
+]
+
+# Spike trap
+SPIKE_CHAR = [
+    " /\\ /\\ ",
+    "/\\/\\/\\",
 ]
 
 # Powerup types
@@ -122,11 +170,31 @@ POWERUP_ACID = "acid"
 POWERUP_STOPWATCH = "stopwatch"
 
 POWERUP_CHARS = {
-    POWERUP_PISTOL: ["[=>"],
-    POWERUP_JETPACK: ["<J>"],
-    POWERUP_BEANS: ["{B}"],
-    POWERUP_ACID: ["<*>"],
-    POWERUP_STOPWATCH: ["(O)"],
+    POWERUP_PISTOL: [
+        " ___ ",
+        "[===>",
+        " ^^^ ",
+    ],
+    POWERUP_JETPACK: [
+        " _|_ ",
+        "<|J|>",
+        " |^| ",
+    ],
+    POWERUP_BEANS: [
+        " .-. ",
+        "{B&B}",
+        " '-' ",
+    ],
+    POWERUP_ACID: [
+        " /*\\ ",
+        "<*@*>",
+        " \\*/ ",
+    ],
+    POWERUP_STOPWATCH: [
+        " .O. ",
+        "((@))",
+        " '-' ",
+    ],
 }
 
 POWERUP_COLORS = {
@@ -343,7 +411,7 @@ class Powerup:
 class Player:
     def __init__(self):
         self.x = 10
-        self.y = GROUND_HEIGHT - 3
+        self.y = GROUND_HEIGHT - 4  # 4 rows tall now
         self.vel_y = 0
         self.jumps_left = MAX_JUMPS
         self.on_ground = True
@@ -352,6 +420,8 @@ class Player:
         self.beans_timer = 0
         self.ammo = 0  # Pistol ammo
         self.acid_timer = 0
+        self.width = 7  # Character width
+        self.height = 4  # Character height
 
     def get_max_jumps(self):
         return MAX_JUMPS + (1 if self.jetpack_jumps > 0 else 0)
@@ -374,8 +444,8 @@ class Player:
     def update(self):
         self.vel_y += GRAVITY
         self.y += self.vel_y
-        if self.y >= GROUND_HEIGHT - 3:
-            self.y = GROUND_HEIGHT - 3
+        if self.y >= GROUND_HEIGHT - self.height:
+            self.y = GROUND_HEIGHT - self.height
             self.vel_y = 0
             self.jumps_left = self.get_max_jumps()
             self.on_ground = True
@@ -407,6 +477,10 @@ class Obstacle:
             self.char = COW_CHAR
         elif obstacle_type == "house":
             self.char = HOUSE_CHAR
+        elif obstacle_type == "cactus":
+            self.char = CACTUS_CHAR
+        elif obstacle_type == "spike":
+            self.char = SPIKE_CHAR
         else:
             self.char = random.choice(OBSTACLE_CHARS_EASY)
 
@@ -461,32 +535,52 @@ class Game:
         if self.spawn_timer <= 0:
             # Choose obstacle type based on score
             obstacle_type = "easy"
-            if self.score > 500:
+            if self.score > 300:
+                # Start spawning cactus and spikes
+                r = random.random()
+                if r < 0.15:
+                    obstacle_type = "cactus"
+                elif r < 0.25:
+                    obstacle_type = "spike"
+            if self.score > 800:
                 # Start spawning birds
-                if random.random() < 0.2:
-                    obstacle_type = "bird"
-            if self.score > 1000:
-                # Start spawning cows
                 r = random.random()
                 if r < 0.15:
                     obstacle_type = "bird"
-                elif r < 0.3:
+                elif r < 0.25:
+                    obstacle_type = "cactus"
+                elif r < 0.35:
+                    obstacle_type = "spike"
+            if self.score > 1500:
+                # Start spawning cows
+                r = random.random()
+                if r < 0.12:
+                    obstacle_type = "bird"
+                elif r < 0.22:
                     obstacle_type = "cow"
-            if self.score > 2000:
+                elif r < 0.32:
+                    obstacle_type = "cactus"
+                elif r < 0.40:
+                    obstacle_type = "spike"
+            if self.score > 2500:
                 # Start spawning houses
                 r = random.random()
-                if r < 0.1:
+                if r < 0.08:
                     obstacle_type = "bird"
-                elif r < 0.2:
+                elif r < 0.16:
                     obstacle_type = "cow"
-                elif r < 0.3:
+                elif r < 0.24:
                     obstacle_type = "house"
+                elif r < 0.32:
+                    obstacle_type = "cactus"
+                elif r < 0.40:
+                    obstacle_type = "spike"
 
             self.obstacles.append(Obstacle(SCREEN_COLS, obstacle_type))
             # More random spacing
-            self.spawn_timer = random.randint(20, 60) + random.randint(0, 30)
+            self.spawn_timer = random.randint(25, 70) + random.randint(0, 35)
             if self.spawn_delay > 15:
-                self.spawn_delay -= 0.1
+                self.spawn_delay -= 0.08
         else:
             self.spawn_timer -= 1
 
@@ -499,7 +593,7 @@ class Game:
 
     def check_collision(self):
         px, py = int(self.player.x), int(self.player.y)
-        player_width, player_height = 3, 3
+        player_width, player_height = self.player.width, self.player.height
         for obs in self.obstacles:
             if not obs.alive:
                 continue
@@ -513,7 +607,7 @@ class Game:
 
     def check_powerup_collision(self):
         px, py = int(self.player.x), int(self.player.y)
-        player_width, player_height = 3, 3
+        player_width, player_height = self.player.width, self.player.height
         for powerup in self.powerups[:]:
             ox, oy = int(powerup.x), int(powerup.y)
             if (px < ox + powerup.width and
@@ -555,7 +649,7 @@ class Game:
 
     def fire_weapon(self):
         if self.player.ammo > 0:
-            self.bullets.append(Bullet(self.player.x + 3, self.player.y + 1))
+            self.bullets.append(Bullet(self.player.x + self.player.width, self.player.y + 1))
             self.shoot_sound.play()
             self.player.ammo -= 1
             return True
@@ -571,7 +665,7 @@ class Game:
         self.spawn_powerup()
 
         # Calculate base scroll speed
-        base_speed = BASE_SCROLL_SPEED + (self.score / 1000)
+        base_speed = BASE_SCROLL_SPEED + (self.score / SPEED_PROGRESSION)
 
         # Apply stopwatch slowdown
         if self.stopwatch_timer > 0:
@@ -615,7 +709,7 @@ class Game:
             self.player.fart_jump()
             self.fart_sound.play()
             # Add fart puff
-            self.fart_puffs.append(FartPuff(self.player.x + 1, self.player.y + 3))
+            self.fart_puffs.append(FartPuff(self.player.x + self.player.width // 2, self.player.y + self.player.height))
 
         if self.check_collision():
             self.game_over = True

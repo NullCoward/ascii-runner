@@ -224,6 +224,22 @@ body {
 }
 
 /* Responsive design */
+@media (max-width: 1200px) {
+    .tv-frame {
+        padding: 30px 30px 18px 30px;
+        border-radius: 25px;
+    }
+
+    #gameCanvas {
+        width: 720px;
+        height: 405px;
+    }
+
+    .tv-stand {
+        gap: 350px;
+    }
+}
+
 @media (max-width: 900px) {
     .tv-frame {
         padding: 20px 20px 15px 20px;
@@ -231,12 +247,17 @@ body {
     }
 
     #gameCanvas {
-        width: 640px;
-        height: 360px;
+        width: 600px;
+        height: 337px;
     }
 
     .tv-stand {
-        gap: 300px;
+        gap: 280px;
+    }
+
+    .stand-leg {
+        width: 35px;
+        height: 50px;
     }
 }
 
@@ -258,6 +279,41 @@ body {
     .stand-leg {
         width: 30px;
         height: 40px;
+    }
+}
+
+@media (max-width: 550px) {
+    .tv-frame {
+        padding: 10px 10px 8px 10px;
+        border-radius: 12px;
+    }
+
+    #gameCanvas {
+        width: 360px;
+        height: 202px;
+    }
+
+    .tv-stand {
+        gap: 140px;
+    }
+
+    .stand-leg {
+        width: 25px;
+        height: 35px;
+    }
+
+    .tv-brand {
+        font-size: 10px;
+    }
+
+    .knob {
+        width: 20px;
+        height: 20px;
+    }
+
+    .tv-speaker {
+        width: 40px;
+        height: 25px;
     }
 }
 

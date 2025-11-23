@@ -10,10 +10,11 @@ const SCREEN_WIDTH = SCREEN_COLS * CHAR_WIDTH;
 const SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT;
 
 const GROUND_HEIGHT = 20;
-const GRAVITY = 0.12;
-const JUMP_FORCE = -1.2;
+const GRAVITY = 0.10;
+const JUMP_FORCE = -1.1;
 const MAX_JUMPS = 1;
-const BASE_SCROLL_SPEED = 1;
+const BASE_SCROLL_SPEED = 0.6;
+const SPEED_PROGRESSION = 2000; // Score needed to double speed
 
 // Colors
 const BLACK = '#000000';
@@ -31,44 +32,91 @@ const BLUE = '#6464ff';
 
 const PSYCHEDELIC_COLORS = [MAGENTA, CYAN, PINK, PURPLE, ORANGE, LIME, YELLOW, RED, BLUE];
 
-// Character definitions
+// Character definitions - more detailed
 const PLAYER_CHAR = [
-    " O ",
-    "/|\\",
-    "/ \\"
+    "  ,O,  ",
+    " /|X|\\ ",
+    "  |_|  ",
+    " _/ \\_ "
 ];
 
 const PLAYER_JUMP_CHAR = [
-    "\\O/",
-    " | ",
-    "/ \\"
+    " \\,O,/ ",
+    "  |X|  ",
+    "  |_|  ",
+    " /   \\ "
 ];
 
 const OBSTACLE_CHARS_EASY = [
-    ["###", "###", "###"],
-    [" A ", "/|\\", "/_\\"],
-    ["[=]", "[=]", "[=]", "[=]"]
+    // Rock pile
+    [
+        "   ___   ",
+        "  /. .\\  ",
+        " /. . .\\ ",
+        "/_._._._\\"
+    ],
+    // Traffic cone
+    [
+        "   /\\   ",
+        "  /  \\  ",
+        " / || \\ ",
+        "/______\\"
+    ],
+    // Crate stack
+    [
+        " [====] ",
+        " |    | ",
+        " [====] ",
+        " |    | ",
+        " [====] "
+    ],
+    // Barrel
+    [
+        " .----. ",
+        "(|    |)",
+        " |====| ",
+        "(|    |)",
+        " '----' "
+    ]
 ];
 
 const BIRD_CHAR = [
-    "\\v/",
-    " O "
+    "   ___   ",
+    "\\<(o  )>/",
+    "   ^^    "
 ];
 
 const COW_CHAR = [
-    " ^__^",
-    "(oo) ",
-    " \\/ ",
-    " || "
+    "   ^__^   ",
+    "  (oo)\\_  ",
+    "  (__)\\  )",
+    "   ||--|| "
 ];
 
 const HOUSE_CHAR = [
-    "  /\\  ",
-    " /  \\ ",
-    "/    \\",
-    "|    |",
-    "|  o |",
-    "|____|"
+    "    /\\    ",
+    "   /  \\   ",
+    "  /    \\  ",
+    " /______\\ ",
+    " |  []  | ",
+    " | .__. | ",
+    " | |  | | ",
+    " |_|__|_| "
+];
+
+// Cactus
+const CACTUS_CHAR = [
+    "   |   ",
+    "  \\|/  ",
+    "   |   ",
+    "  \\|   ",
+    "   |   "
+];
+
+// Spike trap
+const SPIKE_CHAR = [
+    " /\\ /\\ ",
+    "/\\/\\/\\"
 ];
 
 // Powerup types
@@ -79,11 +127,31 @@ const POWERUP_ACID = "acid";
 const POWERUP_STOPWATCH = "stopwatch";
 
 const POWERUP_CHARS = {
-    [POWERUP_PISTOL]: ["[=>"],
-    [POWERUP_JETPACK]: ["<J>"],
-    [POWERUP_BEANS]: ["{B}"],
-    [POWERUP_ACID]: ["<*>"],
-    [POWERUP_STOPWATCH]: ["(O)"]
+    [POWERUP_PISTOL]: [
+        " ___ ",
+        "[===>",
+        " ^^^ "
+    ],
+    [POWERUP_JETPACK]: [
+        " _|_ ",
+        "<|J|>",
+        " |^| "
+    ],
+    [POWERUP_BEANS]: [
+        " .-. ",
+        "{B&B}",
+        " '-' "
+    ],
+    [POWERUP_ACID]: [
+        " /*\\ ",
+        "<*@*>",
+        " \\*/ "
+    ],
+    [POWERUP_STOPWATCH]: [
+        " .O. ",
+        "((@))",
+        " '-' "
+    ]
 };
 
 const POWERUP_COLORS = {
@@ -349,7 +417,7 @@ class Powerup {
 class Player {
     constructor() {
         this.x = 10;
-        this.y = GROUND_HEIGHT - 3;
+        this.y = GROUND_HEIGHT - 4; // 4 rows tall now
         this.velY = 0;
         this.jumpsLeft = MAX_JUMPS;
         this.onGround = true;
@@ -358,6 +426,8 @@ class Player {
         this.beansTimer = 0;
         this.ammo = 0;
         this.acidTimer = 0;
+        this.width = 7; // Character width
+        this.height = 4; // Character height
     }
 
     getMaxJumps() {
@@ -387,8 +457,8 @@ class Player {
         this.velY += GRAVITY;
         this.y += this.velY;
 
-        if (this.y >= GROUND_HEIGHT - 3) {
-            this.y = GROUND_HEIGHT - 3;
+        if (this.y >= GROUND_HEIGHT - this.height) {
+            this.y = GROUND_HEIGHT - this.height;
             this.velY = 0;
             this.jumpsLeft = this.getMaxJumps();
             this.onGround = true;
@@ -427,6 +497,10 @@ class Obstacle {
             this.char = COW_CHAR;
         } else if (type === "house") {
             this.char = HOUSE_CHAR;
+        } else if (type === "cactus") {
+            this.char = CACTUS_CHAR;
+        } else if (type === "spike") {
+            this.char = SPIKE_CHAR;
         } else {
             this.char = OBSTACLE_CHARS_EASY[Math.floor(Math.random() * OBSTACLE_CHARS_EASY.length)];
         }
@@ -524,34 +598,59 @@ class Game {
         if (this.spawnTimer <= 0) {
             let obstacleType = "easy";
 
-            if (this.score > 500) {
-                if (Math.random() < 0.2) {
-                    obstacleType = "bird";
+            if (this.score > 300) {
+                // Start spawning cactus and spikes
+                const r = Math.random();
+                if (r < 0.15) {
+                    obstacleType = "cactus";
+                } else if (r < 0.25) {
+                    obstacleType = "spike";
                 }
             }
-            if (this.score > 1000) {
+            if (this.score > 800) {
+                // Start spawning birds
                 const r = Math.random();
                 if (r < 0.15) {
                     obstacleType = "bird";
-                } else if (r < 0.3) {
-                    obstacleType = "cow";
+                } else if (r < 0.25) {
+                    obstacleType = "cactus";
+                } else if (r < 0.35) {
+                    obstacleType = "spike";
                 }
             }
-            if (this.score > 2000) {
+            if (this.score > 1500) {
+                // Start spawning cows
                 const r = Math.random();
-                if (r < 0.1) {
+                if (r < 0.12) {
                     obstacleType = "bird";
-                } else if (r < 0.2) {
+                } else if (r < 0.22) {
                     obstacleType = "cow";
-                } else if (r < 0.3) {
+                } else if (r < 0.32) {
+                    obstacleType = "cactus";
+                } else if (r < 0.40) {
+                    obstacleType = "spike";
+                }
+            }
+            if (this.score > 2500) {
+                // Start spawning houses
+                const r = Math.random();
+                if (r < 0.08) {
+                    obstacleType = "bird";
+                } else if (r < 0.16) {
+                    obstacleType = "cow";
+                } else if (r < 0.24) {
                     obstacleType = "house";
+                } else if (r < 0.32) {
+                    obstacleType = "cactus";
+                } else if (r < 0.40) {
+                    obstacleType = "spike";
                 }
             }
 
             this.obstacles.push(new Obstacle(SCREEN_COLS, obstacleType));
-            this.spawnTimer = Math.floor(Math.random() * 41) + 20 + Math.floor(Math.random() * 31);
+            this.spawnTimer = Math.floor(Math.random() * 46) + 25 + Math.floor(Math.random() * 36);
             if (this.spawnDelay > 15) {
-                this.spawnDelay -= 0.1;
+                this.spawnDelay -= 0.08;
             }
         } else {
             this.spawnTimer -= 1;
@@ -571,8 +670,8 @@ class Game {
     checkCollision() {
         const px = Math.floor(this.player.x);
         const py = Math.floor(this.player.y);
-        const playerWidth = 3;
-        const playerHeight = 3;
+        const playerWidth = this.player.width;
+        const playerHeight = this.player.height;
 
         for (const obs of this.obstacles) {
             if (!obs.alive) continue;
@@ -591,8 +690,8 @@ class Game {
     checkPowerupCollision() {
         const px = Math.floor(this.player.x);
         const py = Math.floor(this.player.y);
-        const playerWidth = 3;
-        const playerHeight = 3;
+        const playerWidth = this.player.width;
+        const playerHeight = this.player.height;
 
         for (let i = this.powerups.length - 1; i >= 0; i--) {
             const powerup = this.powerups[i];
@@ -651,7 +750,7 @@ class Game {
 
     fireWeapon() {
         if (this.player.ammo > 0) {
-            this.bullets.push(new Bullet(this.player.x + 3, this.player.y + 1));
+            this.bullets.push(new Bullet(this.player.x + this.player.width, this.player.y + 1));
             playShootSound();
             this.player.ammo -= 1;
             return true;
@@ -668,7 +767,7 @@ class Game {
         this.spawnPowerup();
 
         // Calculate base scroll speed
-        let baseSpeed = BASE_SCROLL_SPEED + (this.score / 1000);
+        let baseSpeed = BASE_SCROLL_SPEED + (this.score / SPEED_PROGRESSION);
 
         // Apply stopwatch slowdown
         if (this.stopwatchTimer > 0) {
@@ -720,7 +819,7 @@ class Game {
         if (this.player.hasBeans && Math.random() < 0.005) {
             this.player.fartJump();
             playFartSound();
-            this.fartPuffs.push(new FartPuff(this.player.x + 1, this.player.y + 3));
+            this.fartPuffs.push(new FartPuff(this.player.x + Math.floor(this.player.width / 2), this.player.y + this.player.height));
         }
 
         if (this.checkCollision()) {
@@ -843,8 +942,43 @@ class GameRenderer {
     constructor(canvas) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
+        this.isMobileCanvas = canvas.id === 'mobileGameCanvas';
+        this.setupCanvas();
+    }
+
+    setupCanvas() {
+        // Set internal resolution
         this.canvas.width = SCREEN_WIDTH;
         this.canvas.height = SCREEN_HEIGHT;
+
+        // For mobile, calculate and set display size
+        if (this.isMobileCanvas) {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            // Calculate scale to fit screen while maintaining aspect ratio
+            const gameAspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+            const screenAspect = width / height;
+
+            let canvasWidth, canvasHeight;
+
+            if (screenAspect > gameAspect) {
+                canvasHeight = height;
+                canvasWidth = height * gameAspect;
+            } else {
+                canvasWidth = width;
+                canvasHeight = width / gameAspect;
+            }
+
+            this.canvas.style.width = canvasWidth + 'px';
+            this.canvas.style.height = canvasHeight + 'px';
+            this.canvas.style.position = 'absolute';
+            this.canvas.style.left = ((width - canvasWidth) / 2) + 'px';
+            this.canvas.style.top = ((height - canvasHeight) / 2) + 'px';
+        }
+        // Desktop uses CSS-defined sizes
+
+        // Update font
         this.ctx.font = '14px Consolas, "Courier New", monospace';
     }
 
@@ -1000,10 +1134,9 @@ class GameController {
         // Detect mobile
         this.isMobile = this.detectMobile();
 
-        // Select appropriate canvas
+        // Select appropriate canvas based on device
         if (this.isMobile) {
             this.canvas = document.getElementById('mobileGameCanvas');
-            this.setupMobileCanvas();
         } else {
             this.canvas = document.getElementById('gameCanvas');
         }
@@ -1022,13 +1155,11 @@ class GameController {
 
         this.setupInput();
 
-        // Handle resize for mobile
-        if (this.isMobile) {
-            window.addEventListener('resize', () => this.setupMobileCanvas());
-            window.addEventListener('orientationchange', () => {
-                setTimeout(() => this.setupMobileCanvas(), 100);
-            });
-        }
+        // Handle resize
+        window.addEventListener('resize', () => this.handleResize());
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => this.handleResize(), 100);
+        });
 
         this.gameLoop(0);
     }
@@ -1040,37 +1171,10 @@ class GameController {
                (window.matchMedia('(hover: none) and (pointer: coarse)').matches);
     }
 
-    setupMobileCanvas() {
-        const container = document.getElementById('mobile-game-container');
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-
-        // Calculate scale to fill screen while maintaining aspect ratio
-        const gameAspect = SCREEN_WIDTH / SCREEN_HEIGHT;
-        const screenAspect = width / height;
-
-        let canvasWidth, canvasHeight;
-
-        if (screenAspect > gameAspect) {
-            // Screen is wider than game - fit to height
-            canvasHeight = height;
-            canvasWidth = height * gameAspect;
-        } else {
-            // Screen is taller than game - fit to width
-            canvasWidth = width;
-            canvasHeight = width / gameAspect;
+    handleResize() {
+        if (this.isMobile) {
+            this.renderer.setupCanvas();
         }
-
-        // Set canvas internal resolution
-        this.canvas.width = SCREEN_WIDTH;
-        this.canvas.height = SCREEN_HEIGHT;
-
-        // Set canvas display size to fill screen
-        this.canvas.style.width = canvasWidth + 'px';
-        this.canvas.style.height = canvasHeight + 'px';
-        this.canvas.style.position = 'absolute';
-        this.canvas.style.left = ((width - canvasWidth) / 2) + 'px';
-        this.canvas.style.top = ((height - canvasHeight) / 2) + 'px';
     }
 
     setupInput() {
