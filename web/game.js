@@ -512,9 +512,9 @@ class Game {
         this.lavaBlobs = [];
         this.score = 0;
         this.gameOver = false;
-        this.spawnTimer = 0;
+        this.spawnTimer = 90; // Give player 1.5 seconds before first obstacle
         this.spawnDelay = 40;
-        this.powerupTimer = 0;
+        this.powerupTimer = 120; // Delay first powerup too
         this.scrollSpeed = BASE_SCROLL_SPEED;
         this.stopwatchTimer = 0;
         this.stopwatchSpeedReduction = 0;
