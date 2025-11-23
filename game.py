@@ -71,6 +71,14 @@ PINK = (255, 105, 180)
 PURPLE = (148, 0, 211)
 LIME = (50, 255, 50)
 BLUE = (100, 100, 255)
+BROWN = (139, 69, 19)
+TAN = (210, 180, 140)
+GRAY = (150, 150, 150)
+DARK_GRAY = (80, 80, 80)
+LIGHT_BLUE = (135, 206, 235)
+DARK_GREEN = (0, 100, 0)
+DARK_BROWN = (101, 67, 33)
+CREAM = (255, 253, 208)
 
 # Psychedelic colors for acid trip
 PSYCHEDELIC_COLORS = [MAGENTA, CYAN, PINK, PURPLE, ORANGE, LIME, YELLOW, RED, BLUE]
@@ -133,27 +141,34 @@ def get_environment_for_score(score):
     else:
         return "lava"
 
-# Player character - more detailed
-PLAYER_CHAR = [
-    "  ,O,  ",
-    " /|X|\\ ",
-    "  |_|  ",
-    " _/ \\_ ",
+# Player character - side-on running poses (animated)
+PLAYER_RUN_1 = [
+    " o>  ",
+    "/|\\  ",
+    " |   ",
+    "/ \\  ",
+]
+
+PLAYER_RUN_2 = [
+    " o>  ",
+    "/|\\  ",
+    " |   ",
+    " /\\  ",
 ]
 
 PLAYER_JUMP_CHAR = [
-    " \\,O,/ ",
-    "  |X|  ",
-    "  |_|  ",
-    " /   \\ ",
+    " o>  ",
+    "<|\\  ",
+    "/ \\  ",
+    "     ",
 ]
 
 # Lotus meditation pose for nirvana
 PLAYER_LOTUS_CHAR = [
-    "  ,O,  ",
-    " \\|X|/ ",
-    "  /_\\  ",
-    " /| |\\",
+    " o   ",
+    "\\|/  ",
+    "/_\\  ",
+    "| |  ",
 ]
 
 # Rainbow eye for nirvana mode (centered behind player)
@@ -182,17 +197,22 @@ NIRVANA_FLASH_TEXT = [
     "|_| \\_|___|_| \\_\\ \\_/_/   \\_\\_| \\_/_/   \\_\\",
 ]
 
-# Emoji replacements for emoji acid mode
+# Trippy symbol replacements for emoji acid mode
+# Uses Unicode symbols that render reliably in most fonts
 EMOJI_CHARS = {
-    # Player
-    'O': '😊', ',': '✨', '|': '│', 'X': '💚', '_': '─', '/': '╱', '\\': '╲',
-    # Ground/terrain
-    '#': '🌿', '=': '🌱', '"': '🌾', '^': '🌲', 'Y': '🌳', '*': '⭐', 'T': '🎄',
-    '.': '·', ':': ':', '~': '〰️',
-    # Obstacles
-    '[': '📦', ']': '📦', '-': '─',
-    # Effects
-    '>': '💥', '<': '💨', 'o': '💭', '@': '🔮',
+    # Player - geometric shapes
+    'o': '◉', 'O': '◎', '|': '║', '>': '►', '<': '◄',
+    # Ground/terrain - decorative
+    '#': '▓', '=': '≡', '"': '※', ',': '·',
+    '^': '△', 'Y': '¥', '*': '★', 'T': '†',
+    '.': '•', ':': '∷', '~': '≈',
+    # Structure - box drawing
+    '/': '╱', '\\': '╲', '_': '▁', '-': '─',
+    '[': '【', ']': '】', '(': '〔', ')': '〕',
+    '{': '〖', '}': '〗',
+    # Misc symbols
+    '@': '◈', 'A': '▲', 'M': '♠', 'V': '▼', 'W': '♦',
+    'n': '∩', '+': '✚', '!': '│',
 }
 
 # Obstacles - Easy (more detailed)
@@ -269,6 +289,83 @@ SPIKE_CHAR = [
     "/\\/\\/\\",
 ]
 
+# Obstacle color maps - define color for each character position
+# Each entry is a list of tuples: (char, color) for each position
+OBSTACLE_COLORS_EASY = [
+    # Rock pile - gray rocks with some darker spots
+    [
+        [(' ', None), (' ', None), (' ', None), ('_', GRAY), ('_', GRAY), ('_', GRAY), (' ', None), (' ', None), (' ', None)],
+        [(' ', None), (' ', None), ('/', GRAY), ('.', DARK_GRAY), (' ', GRAY), ('.', DARK_GRAY), ('\\', GRAY), (' ', None), (' ', None)],
+        [(' ', None), ('/', GRAY), ('.', DARK_GRAY), (' ', GRAY), ('.', DARK_GRAY), (' ', GRAY), ('.', DARK_GRAY), ('\\', GRAY), (' ', None)],
+        [('/', GRAY), ('_', GRAY), ('.', DARK_GRAY), ('_', GRAY), ('.', DARK_GRAY), ('_', GRAY), ('.', DARK_GRAY), ('_', GRAY), ('\\', GRAY)],
+    ],
+    # Traffic cone - orange with white stripes
+    [
+        [(' ', None), (' ', None), (' ', None), ('/', ORANGE), ('\\', ORANGE), (' ', None), (' ', None), (' ', None)],
+        [(' ', None), (' ', None), ('/', ORANGE), (' ', WHITE), (' ', WHITE), ('\\', ORANGE), (' ', None), (' ', None)],
+        [(' ', None), ('/', ORANGE), (' ', WHITE), ('|', ORANGE), ('|', ORANGE), (' ', WHITE), ('\\', ORANGE), (' ', None)],
+        [('/', ORANGE), ('_', WHITE), ('_', WHITE), ('_', ORANGE), ('_', ORANGE), ('_', WHITE), ('_', WHITE), ('\\', ORANGE)],
+    ],
+    # Crate stack - brown wood with metal bands
+    [
+        [(' ', None), ('[', DARK_GRAY), ('=', BROWN), ('=', BROWN), ('=', BROWN), ('=', BROWN), (']', DARK_GRAY), (' ', None)],
+        [(' ', None), ('|', BROWN), (' ', TAN), (' ', TAN), (' ', TAN), (' ', TAN), ('|', BROWN), (' ', None)],
+        [(' ', None), ('[', DARK_GRAY), ('=', BROWN), ('=', BROWN), ('=', BROWN), ('=', BROWN), (']', DARK_GRAY), (' ', None)],
+        [(' ', None), ('|', BROWN), (' ', TAN), (' ', TAN), (' ', TAN), (' ', TAN), ('|', BROWN), (' ', None)],
+        [(' ', None), ('[', DARK_GRAY), ('=', BROWN), ('=', BROWN), ('=', BROWN), ('=', BROWN), (']', DARK_GRAY), (' ', None)],
+    ],
+    # Barrel - brown with metal bands
+    [
+        [(' ', None), ('.', DARK_GRAY), ('-', DARK_GRAY), ('-', DARK_GRAY), ('-', DARK_GRAY), ('-', DARK_GRAY), ('.', DARK_GRAY), (' ', None)],
+        [('(', BROWN), ('|', DARK_GRAY), (' ', BROWN), (' ', BROWN), (' ', BROWN), (' ', BROWN), ('|', DARK_GRAY), (')', BROWN)],
+        [(' ', None), ('|', BROWN), ('=', DARK_GRAY), ('=', DARK_GRAY), ('=', DARK_GRAY), ('=', DARK_GRAY), ('|', BROWN), (' ', None)],
+        [('(', BROWN), ('|', DARK_GRAY), (' ', BROWN), (' ', BROWN), (' ', BROWN), (' ', BROWN), ('|', DARK_GRAY), (')', BROWN)],
+        [(' ', None), ("'", DARK_GRAY), ('-', DARK_GRAY), ('-', DARK_GRAY), ('-', DARK_GRAY), ('-', DARK_GRAY), ("'", DARK_GRAY), (' ', None)],
+    ],
+]
+
+# Bird colors - blue body, orange beak, yellow eye
+BIRD_COLORS = [
+    [(' ', None), (' ', None), (' ', None), ('_', LIGHT_BLUE), ('_', LIGHT_BLUE), ('_', LIGHT_BLUE), (' ', None), (' ', None), (' ', None)],
+    [('\\', YELLOW), ('<', ORANGE), ('(', LIGHT_BLUE), ('o', BLACK), (' ', LIGHT_BLUE), (' ', LIGHT_BLUE), (')', LIGHT_BLUE), ('>', YELLOW), ('/', YELLOW)],
+    [(' ', None), (' ', None), (' ', None), ('^', ORANGE), ('^', ORANGE), (' ', None), (' ', None), (' ', None), (' ', None)],
+]
+
+# Cow colors - white body, black spots
+COW_COLORS = [
+    [(' ', None), (' ', None), (' ', None), ('^', PINK), ('_', WHITE), ('_', WHITE), ('^', PINK), (' ', None), (' ', None), (' ', None)],
+    [(' ', None), (' ', None), ('(', WHITE), ('o', BLACK), ('o', BLACK), (')', WHITE), ('\\', WHITE), ('_', WHITE), (' ', None), (' ', None)],
+    [(' ', None), (' ', None), ('(', WHITE), ('_', BLACK), ('_', BLACK), (')', WHITE), ('\\', WHITE), (' ', WHITE), (' ', None), (')', WHITE)],
+    [(' ', None), (' ', None), (' ', None), ('|', WHITE), ('|', BLACK), ('-', WHITE), ('-', WHITE), ('|', BLACK), ('|', WHITE), (' ', None)],
+]
+
+# House colors - brown roof, tan walls, blue windows, red door
+HOUSE_COLORS = [
+    [(' ', None), (' ', None), (' ', None), (' ', None), ('/', BROWN), ('\\', BROWN), (' ', None), (' ', None), (' ', None), (' ', None)],
+    [(' ', None), (' ', None), (' ', None), ('/', BROWN), (' ', DARK_BROWN), (' ', DARK_BROWN), ('\\', BROWN), (' ', None), (' ', None), (' ', None)],
+    [(' ', None), (' ', None), ('/', BROWN), (' ', DARK_BROWN), (' ', DARK_BROWN), (' ', DARK_BROWN), (' ', DARK_BROWN), ('\\', BROWN), (' ', None), (' ', None)],
+    [(' ', None), ('/', BROWN), ('_', BROWN), ('_', BROWN), ('_', BROWN), ('_', BROWN), ('_', BROWN), ('_', BROWN), ('\\', BROWN), (' ', None)],
+    [(' ', None), ('|', TAN), (' ', TAN), (' ', TAN), ('[', LIGHT_BLUE), (']', LIGHT_BLUE), (' ', TAN), (' ', TAN), ('|', TAN), (' ', None)],
+    [(' ', None), ('|', TAN), (' ', TAN), ('.', RED), ('_', RED), ('_', RED), ('.', RED), (' ', TAN), ('|', TAN), (' ', None)],
+    [(' ', None), ('|', TAN), (' ', TAN), ('|', RED), (' ', DARK_BROWN), (' ', DARK_BROWN), ('|', RED), (' ', TAN), ('|', TAN), (' ', None)],
+    [(' ', None), ('|', TAN), ('_', TAN), ('|', RED), ('_', DARK_BROWN), ('_', DARK_BROWN), ('|', RED), ('_', TAN), ('|', TAN), (' ', None)],
+]
+
+# Cactus colors - green with darker green details
+CACTUS_COLORS = [
+    [(' ', None), (' ', None), (' ', None), ('|', GREEN), (' ', None), (' ', None), (' ', None)],
+    [(' ', None), (' ', None), ('\\', DARK_GREEN), ('|', GREEN), ('/', DARK_GREEN), (' ', None), (' ', None)],
+    [(' ', None), (' ', None), (' ', None), ('|', GREEN), (' ', None), (' ', None), (' ', None)],
+    [(' ', None), (' ', None), ('\\', DARK_GREEN), ('|', GREEN), (' ', None), (' ', None), (' ', None)],
+    [(' ', None), (' ', None), (' ', None), ('|', GREEN), (' ', None), (' ', None), (' ', None)],
+]
+
+# Spike colors - metallic gray
+SPIKE_COLORS = [
+    [(' ', None), ('/', GRAY), ('\\', GRAY), (' ', None), ('/', GRAY), ('\\', GRAY), (' ', None)],
+    [('/', DARK_GRAY), ('\\', GRAY), ('/', DARK_GRAY), ('\\', GRAY), ('/', DARK_GRAY), ('\\', GRAY)],
+]
+
 # Calculate max obstacle height dynamically
 def get_max_obstacle_height():
     all_obstacles = OBSTACLE_CHARS_EASY + [BIRD_CHAR, COW_CHAR, HOUSE_CHAR, CACTUS_CHAR, SPIKE_CHAR]
@@ -279,6 +376,10 @@ DESIRED_JUMP_HEIGHT = MAX_OBSTACLE_HEIGHT * JUMP_CLEARANCE_MULTIPLIER
 GRAVITY = 0.035  # Lower gravity = more hang time = longer jump
 JUMP_FORCE = -math.sqrt(2 * GRAVITY * DESIRED_JUMP_HEIGHT)  # v = sqrt(2gh)
 
+# Calculate jump duration (frames in air)
+# Time to peak = -JUMP_FORCE / GRAVITY, total air time = 2x that
+JUMP_DURATION = 2 * (-JUMP_FORCE / GRAVITY)
+
 # Powerup types
 POWERUP_PISTOL = "pistol"
 POWERUP_JETPACK = "jetpack"
@@ -288,29 +389,19 @@ POWERUP_STOPWATCH = "stopwatch"
 
 POWERUP_CHARS = {
     POWERUP_PISTOL: [
-        " ___ ",
-        "[===>",
-        " ^^^ ",
+        "[=>",
     ],
     POWERUP_JETPACK: [
-        " _|_ ",
-        "<|J|>",
-        " |^| ",
+        "<J>",
     ],
     POWERUP_BEANS: [
-        " .-. ",
-        "{B&B}",
-        " '-' ",
+        "{B}",
     ],
     POWERUP_ACID: [
-        " /*\\ ",
-        "<*@*>",
-        " \\*/ ",
+        "<*>",
     ],
     POWERUP_STOPWATCH: [
-        " .O. ",
-        "((@))",
-        " '-' ",
+        "(O)",
     ],
 }
 
@@ -554,7 +645,7 @@ class Player:
         self.acid_flash_timer = 0  # Flash "ACID" text
         self.nirvana_flash_timer = 0  # Flash "NIRVANA" text
         self.was_in_nirvana = False  # Track nirvana state transitions
-        self.width = 7  # Character width
+        self.width = 5  # Character width
         self.height = 4  # Character height
 
     def get_acid_level(self):
@@ -627,33 +718,49 @@ class Player:
         if self.nirvana_flash_timer > 0:
             self.nirvana_flash_timer -= 1
 
-    def get_char(self):
+    def get_char(self, frame=0):
         if self.get_acid_level() == 3:
             return PLAYER_LOTUS_CHAR
-        return PLAYER_JUMP_CHAR if not self.on_ground else PLAYER_CHAR
+        if not self.on_ground:
+            return PLAYER_JUMP_CHAR
+        # Animate running - switch every 8 frames
+        if (frame // 8) % 2 == 0:
+            return PLAYER_RUN_1
+        else:
+            return PLAYER_RUN_2
 
 class Obstacle:
     def __init__(self, x, obstacle_type="easy"):
         self.x = x
         self.obstacle_type = obstacle_type
         self.flying = False
+        self.color_data = None  # Per-character color data
 
         if obstacle_type == "easy":
-            self.char = random.choice(OBSTACLE_CHARS_EASY)
+            idx = random.randint(0, len(OBSTACLE_CHARS_EASY) - 1)
+            self.char = OBSTACLE_CHARS_EASY[idx]
+            self.color_data = OBSTACLE_COLORS_EASY[idx]
         elif obstacle_type == "bird":
             self.char = BIRD_CHAR
+            self.color_data = BIRD_COLORS
             self.flying = True
             self.fly_y = random.randint(8, 14)  # Flying height
         elif obstacle_type == "cow":
             self.char = COW_CHAR
+            self.color_data = COW_COLORS
         elif obstacle_type == "house":
             self.char = HOUSE_CHAR
+            self.color_data = HOUSE_COLORS
         elif obstacle_type == "cactus":
             self.char = CACTUS_CHAR
+            self.color_data = CACTUS_COLORS
         elif obstacle_type == "spike":
             self.char = SPIKE_CHAR
+            self.color_data = SPIKE_COLORS
         else:
-            self.char = random.choice(OBSTACLE_CHARS_EASY)
+            idx = random.randint(0, len(OBSTACLE_CHARS_EASY) - 1)
+            self.char = OBSTACLE_CHARS_EASY[idx]
+            self.color_data = OBSTACLE_COLORS_EASY[idx]
 
         self.height = len(self.char)
         self.width = max(len(row) for row in self.char)
@@ -747,11 +854,21 @@ class Game:
                 elif r < 0.40:
                     obstacle_type = "spike"
 
-            self.obstacles.append(Obstacle(SCREEN_COLS, obstacle_type))
-            # More random spacing - increased for larger obstacles
-            self.spawn_timer = random.randint(50, 120) + random.randint(0, 50)
-            if self.spawn_delay > 15:
-                self.spawn_delay -= 0.05
+            new_obstacle = Obstacle(SCREEN_COLS, obstacle_type)
+            self.obstacles.append(new_obstacle)
+
+            # Dynamic spacing based on speed, obstacle size, and jump duration
+            # Minimum safe distance = jump distance + obstacle width + landing buffer
+            jump_distance = JUMP_DURATION * self.scroll_speed
+            landing_buffer = 8  # Extra space for safe landing
+            min_distance = jump_distance + new_obstacle.width + landing_buffer
+
+            # Convert distance to frames: frames = distance / scroll_speed
+            min_frames = int(min_distance / max(self.scroll_speed, 0.1))
+
+            # Add some randomness on top of minimum (10-50% extra)
+            random_extra = int(min_frames * random.uniform(0.1, 0.5))
+            self.spawn_timer = min_frames + random_extra
         else:
             self.spawn_timer -= 1
 
@@ -765,6 +882,13 @@ class Game:
     def check_collision(self):
         px, py = int(self.player.x), int(self.player.y)
         player_width, player_height = self.player.width, self.player.height
+
+        # Add hitbox padding for less sensitive collision
+        hitbox_padding = 1  # Pixels of forgiveness
+        px += hitbox_padding
+        player_width -= hitbox_padding * 2
+        py += hitbox_padding
+        player_height -= hitbox_padding
         player_bottom = py + player_height
 
         for obs in self.obstacles:
@@ -956,14 +1080,8 @@ class Game:
 
         for y in range(BG_TERRAIN_BOTTOM, GROUND_HEIGHT):
             for x in range(SCREEN_COLS):
-                # Add some texture variation
-                if (x + y) % 5 == 0:
-                    char = ':'
-                elif (x + y) % 7 == 0:
-                    char = '.'
-                else:
-                    char = fill_char
-                screen[y][x] = (char, fill_color)
+                # Solid fill with the fill character
+                screen[y][x] = (fill_char, fill_color)
 
         # Draw foreground ground
         ground_color = env["ground_color"]
@@ -974,18 +1092,31 @@ class Game:
             char = ground_chars[x % len(ground_chars)]
             screen[GROUND_HEIGHT][x] = (char, ground_color)
 
-        # Draw obstacles
+        # Draw obstacles with per-character colors (fully opaque)
         for obs in self.obstacles:
             if not obs.alive:
                 continue
-            obs_color = RED
-            if self.player.acid_timer > 0:
-                obs_color = random.choice(PSYCHEDELIC_COLORS)
             for i, row in enumerate(obs.char):
                 for j, char in enumerate(row):
                     x, y = int(obs.x) + j, int(obs.y) + i
                     if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
-                        screen[y][x] = (char, obs_color)
+                        # Get color from color_data if available
+                        if obs.color_data and i < len(obs.color_data) and j < len(obs.color_data[i]):
+                            _, char_color = obs.color_data[i][j]
+                            if char_color is None:
+                                continue  # Skip edge spaces only
+                        else:
+                            char_color = RED  # Fallback
+
+                        # Apply psychedelic effect during acid trip
+                        if self.player.acid_timer > 0:
+                            char_color = random.choice(PSYCHEDELIC_COLORS)
+
+                        # Draw the character (spaces become solid background)
+                        if char == ' ':
+                            screen[y][x] = (' ', BLACK)  # Opaque black for interior
+                        else:
+                            screen[y][x] = (char, char_color)
 
         # Draw powerups
         for powerup in self.powerups:
@@ -1025,11 +1156,11 @@ class Game:
                         color_idx = (i + j + self.frame // 3) % len(PSYCHEDELIC_COLORS)
                         screen[y][x] = (char, PSYCHEDELIC_COLORS[color_idx])
 
-        # Draw player
+        # Draw player (with animation frame)
         player_color = CYAN
         if self.player.acid_timer > 0:
             player_color = PSYCHEDELIC_COLORS[self.frame % len(PSYCHEDELIC_COLORS)]
-        player_char = self.player.get_char()
+        player_char = self.player.get_char(self.frame)
         for i, row in enumerate(player_char):
             for j, char in enumerate(row):
                 x, y = int(self.player.x) + j, int(self.player.y) + i
@@ -1091,13 +1222,21 @@ class Game:
         self.stopwatch_timer = 0
         self.stopwatch_speed_reduction = 0
 
-def render_buffer(screen, font, buffer):
+def render_buffer(screen, font, buffer, emoji_font=None):
     for y, row in enumerate(buffer):
         x_pos = 0
         for char, color in row:
             if char != ' ' or color != BLACK:
-                surface = font.render(char, True, color if color != BLACK else GREEN)
-                screen.blit(surface, (x_pos, y * CHAR_HEIGHT))
+                # Use emoji font for emoji characters
+                is_emoji = ord(char) > 127 if len(char) == 1 else True
+                render_font = emoji_font if (is_emoji and emoji_font) else font
+                try:
+                    surface = render_font.render(char, True, color if color != BLACK else GREEN)
+                    screen.blit(surface, (x_pos, y * CHAR_HEIGHT))
+                except:
+                    # Fallback if emoji fails
+                    surface = font.render('?', True, color if color != BLACK else GREEN)
+                    screen.blit(surface, (x_pos, y * CHAR_HEIGHT))
             x_pos += CHAR_WIDTH
 
 def show_intro(screen, font, high_scores):
@@ -1216,27 +1355,48 @@ def get_player_name(screen, font, score):
         clock.tick(60)
 
 def show_game_over(screen, font, score, high_score):
-    lines = [
-        "",
-        "",
-        "",
-        "",
-        "              +-----------------------------------+",
-        "              |                                   |",
-        "              |          GAME  OVER!              |",
-        "              |                                   |",
-        f"              |      Score: {score:>6}                |",
-        f"              |      High:  {high_score:>6}                |",
-        "              |                                   |",
-        "              |   [SPACE] - Play Again            |",
-        "              |   [ESC]   - Quit                  |",
-        "              |                                   |",
-        "              +-----------------------------------+",
+    # Epic Gates of Hell death screen
+    gate_art = [
+        "        )  (        )  (        ",
+        "       (    )      (    )       ",
+        "        )  (        )  (        ",
+        "   |\\  /|  |\\      /|  |\\  /|   ",
+        "   | \\/  \\ | \\    / |  | \\/  |   ",
+        "   |      \\|  \\  /  |  |     |   ",
+        "  /|       |   \\/   | /|     |\\  ",
+        " / |  G A T E S   O F  |     | \\ ",
+        "|  |                   |     |  |",
+        "|  |   H   E   L   L   |     |  |",
+        "|  |                   |     |  |",
+        "|  |___________________|     |  |",
+        "|  /                   \\     |  |",
+        "| /    YOU  HAVE  DIED  \\    |  |",
+        "|/                       \\   |  |",
     ]
 
-    for i, line in enumerate(lines):
-        surface = font.render(line, True, RED)
-        screen.blit(surface, (0, (i + 5) * CHAR_HEIGHT))
+    # Draw gate art with fire colors
+    fire_colors = [RED, ORANGE, YELLOW, RED, ORANGE]
+    y_start = 1
+    for i, line in enumerate(gate_art):
+        color = fire_colors[i % len(fire_colors)]
+        surface = font.render(line, True, color)
+        x_pos = (SCREEN_WIDTH - len(line) * CHAR_WIDTH) // 2
+        screen.blit(surface, (x_pos, (y_start + i) * CHAR_HEIGHT))
+
+    # Score box below gates
+    box_lines = [
+        f"      Score: {score:>6}      ",
+        f"      High:  {high_score:>6}      ",
+        "                          ",
+        "   [SPACE] Play Again     ",
+        "   [ESC]   Quit           ",
+    ]
+
+    y_start = 17
+    for i, line in enumerate(box_lines):
+        surface = font.render(line, True, WHITE)
+        x_pos = (SCREEN_WIDTH - len(line) * CHAR_WIDTH) // 2
+        screen.blit(surface, (x_pos, (y_start + i) * CHAR_HEIGHT))
 
 def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -1246,6 +1406,12 @@ def main():
         font = pygame.font.SysFont('consolas', 14)
     except:
         font = pygame.font.SysFont('courier', 14)
+
+    # Load emoji font for emoji acid mode
+    try:
+        emoji_font = pygame.font.SysFont('segoeuiemoji', 12)
+    except:
+        emoji_font = None
 
     clock = pygame.time.Clock()
     game = Game()
@@ -1304,7 +1470,7 @@ def main():
 
         screen.fill(BLACK)
         buffer = game.get_screen_buffer()
-        render_buffer(screen, font, buffer)
+        render_buffer(screen, font, buffer, emoji_font)
 
         # Draw HUD - Score on right
         score_text = f"Score: {game.score}"
