@@ -1462,28 +1462,75 @@ class GameRenderer {
     }
 
     renderGameOver(score, highScore) {
-        const lines = [
-            "+-----------------------------------+",
-            "|                                   |",
-            "|          GAME  OVER!              |",
-            "|                                   |",
-            `|      Score: ${String(score).padStart(6)}                |`,
-            `|      High:  ${String(highScore).padStart(6)}                |`,
-            "|                                   |",
-            "|   [SPACE] - Play Again            |",
-            "|   [ESC]   - Quit                  |",
-            "|                                   |",
-            "+-----------------------------------+"
+        // Epic death screen - Gates of Hell
+        const deathScreen = [
+            "                    \\ | /                    ",
+            "                  ---*---                    ",
+            "        /\\                          /\\       ",
+            "       /  \\   Y   Y   OOO   U   U  /  \\      ",
+            "      / /\\ \\   Y Y   O   O  U   U / /\\ \\     ",
+            "     /      \\   Y    O   O  U   U/      \\    ",
+            "    /   /\\   \\  Y    O   O  U   U   /\\   \\   ",
+            "   /   /  \\   \\ Y     OOO    UUU   /  \\   \\  ",
+            "                                             ",
+            "  ^^^  D  D  I  EEEEE  D  D  ^^^             ",
+            " ^   ^ D   D I  E      D   D ^   ^           ",
+            "  ^^^  D   D I  EEE    D   D  ^^^            ",
+            "       D   D I  E      D   D                 ",
+            "       DDDD  I  EEEEE  DDDD                  ",
+            "                                             ",
+            "    |^^^^^^^^^^^^^^||^^^^^^^^^^^^^^|        ",
+            "    |##\\/\\/\\/\\/\\/##||##\\/\\/\\/\\/\\/##|        ",
+            "    |#  ___  ___  #||#  ___  ___  #|        ",
+            "    |# |o o||o o| #||# |o o||o o| #|        ",
+            "    |# |___|___| #||# |___|___| #|          ",
+            "   /|#    \\ /    #||#    \\ /    #|\\        ",
+            "  / |#    _V_    #||#    _V_    #| \\       ",
+            " /  |#  /  |  \\  #||#  /  |  \\  #|  \\      ",
+            "    |#############||#############|         ",
+            " *  |vvvvvvvvvvvvv||vvvvvvvvvvvvv|  *      ",
+            "    ,-. ,-. @ ,-. ,-.                       ",
+            "   ( o ) o ) | ( o ( o )                    ",
+            "    `-' `-'   `-' `-'                       ",
+            "  ~^~^~  FLAMES  ~^~^~  FLAMES  ~^~^~       ",
+            "                                             ",
+            `         SCORE: ${String(score).padStart(6)}   HIGH: ${String(highScore).padStart(6)}        `,
+            "                                             ",
+            "         [SPACE] RISE AGAIN   [ESC] FLEE     "
         ];
 
-        // Center the box horizontally
-        const boxWidth = lines[0].length * CHAR_WIDTH;
-        const startX = (SCREEN_WIDTH - boxWidth) / 2;
-        const startY = 6 * CHAR_HEIGHT;
+        // Animate flames
+        const frame = Math.floor(Date.now() / 100);
 
-        this.ctx.fillStyle = RED;
-        lines.forEach((line, i) => {
-            this.ctx.fillText(line, startX, startY + (i * CHAR_HEIGHT));
+        this.ctx.fillStyle = BLACK;
+        this.ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+        const startX = 2 * CHAR_WIDTH;
+
+        deathScreen.forEach((line, i) => {
+            let color = RED;
+
+            // Lightning at top
+            if (i < 2) color = YELLOW;
+            // "YOU" text
+            else if (i >= 3 && i <= 7) color = '#ff4444';
+            // "DIED" text
+            else if (i >= 9 && i <= 13) color = '#cc0000';
+            // Gates
+            else if (i >= 15 && i <= 24) {
+                color = (frame + i) % 2 === 0 ? '#888888' : '#666666';
+            }
+            // Skulls/bodies
+            else if (i >= 25 && i <= 27) color = '#aaaaaa';
+            // Flames
+            else if (i === 28) {
+                color = (frame % 3 === 0) ? ORANGE : (frame % 3 === 1) ? YELLOW : RED;
+            }
+            // Score
+            else if (i >= 30) color = WHITE;
+
+            this.ctx.fillStyle = color;
+            this.ctx.fillText(line, startX, (i + 1) * CHAR_HEIGHT);
         });
     }
 }
@@ -1573,27 +1620,11 @@ class GameController {
                     this.state = 'playing';
                     this.game.reset();
                     this.scoreEntered = false;
-                } else if (this.state === 'highscore') {
-                    if (this.playerName.length > 0) {
-                        this.game.addHighScore(this.playerName.toUpperCase().padEnd(5).slice(0, 5), this.game.score);
-                        this.state = 'gameover';
-                        this.scoreEntered = true;
-                    }
                 }
             } else if (e.code === 'Escape') {
                 if (this.state === 'playing' || this.state === 'gameover') {
                     this.state = 'intro';
                     this.game.reset();
-                }
-            } else if (this.state === 'highscore') {
-                if (e.code === 'Backspace') {
-                    this.playerName = this.playerName.slice(0, -1);
-                } else if (e.code === 'Enter' && this.playerName.length > 0) {
-                    this.game.addHighScore(this.playerName.toUpperCase().padEnd(5).slice(0, 5), this.game.score);
-                    this.state = 'gameover';
-                    this.scoreEntered = true;
-                } else if (e.key.length === 1 && this.playerName.length < 5 && /[a-zA-Z0-9]/.test(e.key)) {
-                    this.playerName += e.key.toUpperCase();
                 }
             }
         });
@@ -1666,23 +1697,12 @@ class GameController {
                 this.accumulator -= this.frameTime;
 
                 if (this.game.gameOver && !this.scoreEntered) {
+                    // Auto-save high score without name entry
                     if (this.game.isHighScore(this.game.score)) {
-                        // On mobile, use prompt for name entry
-                        if (this.isMobile) {
-                            const name = prompt(`New High Score: ${this.game.score}\nEnter your name (5 chars):`, 'PLAYER');
-                            if (name && name.trim()) {
-                                this.game.addHighScore(name.toUpperCase().replace(/[^A-Z0-9]/g, '').padEnd(5).slice(0, 5), this.game.score);
-                            }
-                            this.state = 'gameover';
-                            this.scoreEntered = true;
-                        } else {
-                            this.state = 'highscore';
-                            this.playerName = '';
-                        }
-                    } else {
-                        this.state = 'gameover';
-                        this.scoreEntered = true;
+                        this.game.addHighScore('SOUL', this.game.score);
                     }
+                    this.state = 'gameover';
+                    this.scoreEntered = true;
                     break;
                 }
             }
@@ -1691,12 +1711,7 @@ class GameController {
             this.renderer.renderBuffer(this.game.getScreenBuffer());
             this.renderer.renderHUD(this.game);
         } else if (this.state === 'gameover') {
-            this.renderer.clear();
-            this.renderer.renderBuffer(this.game.getScreenBuffer());
-            this.renderer.renderHUD(this.game);
             this.renderer.renderGameOver(this.game.score, this.game.highScore);
-        } else if (this.state === 'highscore') {
-            this.renderHighScoreEntry();
         }
 
         requestAnimationFrame((time) => this.gameLoop(time));
