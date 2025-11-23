@@ -129,26 +129,67 @@ function playStompSound() {
     setTimeout(() => createOscillator(300, 0.1, 'square', 0.25), 50);
 }
 
-// Music
+// Music - different melodies per environment
 let musicTimer = 0;
 let currentNote = 0;
-const melody = [
-    [262, 0.15], [330, 0.15], [392, 0.15], [523, 0.3],
-    [392, 0.15], [330, 0.15], [262, 0.3],
-    [294, 0.15], [370, 0.15], [440, 0.15], [587, 0.3],
-    [440, 0.15], [370, 0.15], [294, 0.3],
-    [330, 0.15], [415, 0.15], [494, 0.15], [659, 0.3],
-    [494, 0.15], [415, 0.15], [330, 0.3],
-    [392, 0.15], [494, 0.15], [587, 0.15], [784, 0.3],
-    [659, 0.15], [587, 0.15], [523, 0.15], [494, 0.3]
-];
+let currentMelody = 'grass';
 
-function playMusic() {
+const melodies = {
+    grass: [
+        [262, 0.15], [330, 0.15], [392, 0.15], [523, 0.3],
+        [392, 0.15], [330, 0.15], [262, 0.3],
+        [294, 0.15], [370, 0.15], [440, 0.15], [587, 0.3],
+        [440, 0.15], [370, 0.15], [294, 0.3],
+    ],
+    desert: [
+        [220, 0.2], [247, 0.15], [262, 0.15], [294, 0.3],
+        [262, 0.15], [247, 0.2], [220, 0.3],
+        [196, 0.15], [220, 0.15], [262, 0.2], [247, 0.3],
+        [220, 0.15], [196, 0.2], [175, 0.3],
+    ],
+    snow: [
+        [392, 0.2], [440, 0.15], [494, 0.15], [523, 0.3],
+        [494, 0.15], [440, 0.15], [392, 0.3],
+        [330, 0.2], [392, 0.15], [440, 0.15], [392, 0.3],
+        [330, 0.15], [294, 0.15], [262, 0.3],
+    ],
+    cave: [
+        [131, 0.25], [147, 0.15], [165, 0.2], [147, 0.3],
+        [131, 0.2], [123, 0.15], [110, 0.3],
+        [131, 0.15], [165, 0.2], [196, 0.15], [165, 0.3],
+        [147, 0.2], [131, 0.15], [110, 0.3],
+    ],
+    lava: [
+        [196, 0.15], [233, 0.15], [262, 0.2], [294, 0.15],
+        [262, 0.15], [233, 0.2], [196, 0.3],
+        [175, 0.15], [196, 0.15], [233, 0.2], [262, 0.15],
+        [233, 0.15], [196, 0.15], [175, 0.3],
+    ],
+};
+
+function getEnvironmentForScore(score) {
+    if (score < 500) return 'grass';
+    if (score < 1200) return 'desert';
+    if (score < 2000) return 'snow';
+    if (score < 3000) return 'cave';
+    return 'lava';
+}
+
+function playMusic(score = 0) {
     if (!audioContext) return;
+
+    // Switch melody based on environment
+    const env = getEnvironmentForScore(score);
+    if (env !== currentMelody) {
+        currentMelody = env;
+        currentNote = 0;  // Reset to start of new melody
+    }
+
+    const melody = melodies[currentMelody];
     musicTimer++;
     if (musicTimer >= 16) {
         const [freq, dur] = melody[currentNote];
-        createOscillator(freq, dur, 'square', 0.15);
+        createOscillator(freq, dur, 'square', 0.12);
         currentNote = (currentNote + 1) % melody.length;
         musicTimer = 0;
     }
@@ -416,13 +457,37 @@ function colorToCSS(color) {
 let lastDied = false;
 let frame = 0;
 
-function gameLoop() {
+// Fixed timestep for consistent speed across platforms
+const TARGET_FPS = 60;
+const FRAME_TIME = 1000 / TARGET_FPS;
+let lastTime = 0;
+let accumulator = 0;
+
+function gameLoop(currentTime) {
     try {
-        frame++;
+        // Calculate delta time
+        if (lastTime === 0) lastTime = currentTime;
+        const deltaTime = Math.min(currentTime - lastTime, 100); // Cap at 100ms to prevent spiral
+        lastTime = currentTime;
+        accumulator += deltaTime;
+
+        // Only update at fixed timestep
+        let updated = false;
+        while (accumulator >= FRAME_TIME) {
+            frame++;
+            accumulator -= FRAME_TIME;
+            updated = true;
+        }
+
+        // Skip rendering if no update occurred
+        if (!updated) {
+            animationId = requestAnimationFrame(gameLoop);
+            return;
+        }
 
         if (gameState === 'intro') {
             renderIntro();
-            playMusic();
+            playMusic(0);
         } else if (gameState === 'playing') {
             // Update game - convert Pyodide proxy to JS object
             const eventsProxy = gameEngine.update();
@@ -462,8 +527,9 @@ function gameLoop() {
                 }
             }
 
-            // Play music
-            playMusic();
+            // Play music based on environment
+            const stateForMusic = gameEngine.get_state().toJs({dict_converter: Object.fromEntries});
+            playMusic(stateForMusic.score);
 
             // Render game
             renderGame();

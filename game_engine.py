@@ -12,8 +12,9 @@ SCREEN_ROWS = 25
 SCREEN_WIDTH = SCREEN_COLS * CHAR_WIDTH
 SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT
 
-GROUND_HEIGHT = 20
+GROUND_HEIGHT = 22  # Moved down for more headspace
 MAX_JUMPS = 1
+CAMERA_FOLLOW_THRESHOLD = 5  # Start following when player is this many rows from top
 BASE_SCROLL_SPEED = 0.3
 SPEED_PROGRESSION = 2000  # +0.1 speed per 200 points
 JUMP_CLEARANCE_MULTIPLIER = 1.2
@@ -609,6 +610,16 @@ class GameEngine:
         self.stopwatch_speed_reduction = 0
         self.scroll_offset = 0.0  # Track world scroll for ground/background
         self.bg_scroll_offset = 0.0  # Slower scroll for background parallax
+        self.camera_y = 0  # Vertical camera offset (negative = looking up)
+
+        # Generate starfield (two screen heights above)
+        self.stars = []
+        for _ in range(100):
+            star_x = random.randint(0, SCREEN_COLS - 1)
+            star_y = random.randint(-SCREEN_ROWS * 2, -1)  # Above the screen
+            star_char = random.choice(['.', '*', '+', 'o'])
+            star_brightness = random.choice([(100, 100, 120), (150, 150, 180), (200, 200, 255), (255, 255, 255)])
+            self.stars.append((star_x, star_y, star_char, star_brightness))
 
         # Initialize some background elements
         for i in range(3):
@@ -792,6 +803,14 @@ class GameEngine:
         self.spawn_obstacle()
         self.spawn_powerup()
 
+        # Camera follows player upward
+        if self.player.y < CAMERA_FOLLOW_THRESHOLD:
+            target_camera = -(CAMERA_FOLLOW_THRESHOLD - self.player.y)
+            self.camera_y += (target_camera - self.camera_y) * 0.1  # Smooth follow
+        else:
+            # Return camera to normal when player is lower
+            self.camera_y += (0 - self.camera_y) * 0.1
+
         base_speed = BASE_SCROLL_SPEED + (self.score / SPEED_PROGRESSION)
 
         if self.stopwatch_timer > 0:
@@ -886,15 +905,24 @@ class GameEngine:
         Depth: 0 = far background (smallest), 1 = mid background, 2 = foreground (largest)"""
         screen = [[(' ', BLACK, 2) for _ in range(SCREEN_COLS)] for _ in range(SCREEN_ROWS)]
 
+        # Camera offset for vertical scrolling
+        cam_y = int(self.camera_y)
+
         env_name = get_environment_for_score(self.score)
         env = ENVIRONMENTS[env_name]
+
+        # Draw stars (visible when camera looks up)
+        for star_x, star_y, star_char, star_color in self.stars:
+            screen_y = star_y - cam_y
+            if 0 <= screen_y < SCREEN_ROWS and 0 <= star_x < SCREEN_COLS:
+                screen[screen_y][star_x] = (star_char, star_color, 0)
 
         # Draw sun or moon based on day cycle (score-based) - depth 0 (far)
         is_day = (self.score // 500) % 2 == 0
         if env_name != "cave":  # No sun/moon in caves
             if is_day:
                 sun_x = 65
-                sun_y = 1
+                sun_y = 1 - cam_y
                 sun_color = YELLOW
                 for i, row in enumerate(SUN_CHAR):
                     for j, char in enumerate(row):
@@ -903,7 +931,7 @@ class GameEngine:
                             screen[y][x] = (char, sun_color, 0)
             else:
                 moon_x = 65
-                moon_y = 1
+                moon_y = 1 - cam_y
                 moon_color = (200, 200, 220)
                 for i, row in enumerate(MOON_CHAR):
                     for j, char in enumerate(row):
@@ -918,13 +946,13 @@ class GameEngine:
                 color = random.choice(PSYCHEDELIC_COLORS)
             for i, row in enumerate(elem.char):
                 for j, char in enumerate(row):
-                    x, y = int(elem.x) + j, elem.y + i
+                    x, y = int(elem.x) + j, elem.y + i - cam_y
                     if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
                         screen[y][x] = (char, color, 0)
 
         # Draw snowflakes - depth 1 (mid)
         for flake in self.snowflakes:
-            x, y = int(flake.x), int(flake.y)
+            x, y = int(flake.x), int(flake.y) - cam_y
             if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
                 flake_color = WHITE
                 if self.player.acid_timer > 0:
@@ -933,7 +961,7 @@ class GameEngine:
 
         # Draw lava blobs - depth 1 (mid)
         for blob in self.lava_blobs:
-            x, y = int(blob.x), int(blob.y)
+            x, y = int(blob.x), int(blob.y) - cam_y
             if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
                 screen[y][x] = (blob.char, blob.color, 1)
 
@@ -950,8 +978,8 @@ class GameEngine:
         bg_offset = int(self.bg_scroll_offset)
         for x in range(SCREEN_COLS):
             height_offset = ((x + bg_offset) // 8) % 3 - 1
-            terrain_top = BG_TERRAIN_TOP + height_offset
-            if terrain_top >= 0 and terrain_top < SCREEN_ROWS:
+            terrain_top = BG_TERRAIN_TOP + height_offset - cam_y
+            if 0 <= terrain_top < SCREEN_ROWS:
                 char = bg_chars[(x + bg_offset) % len(bg_chars)]
                 screen[terrain_top][x] = (char, bg_color, 1)
 
@@ -964,9 +992,11 @@ class GameEngine:
 
         fill_offset = int(self.scroll_offset * 0.5)
         for y in range(BG_TERRAIN_BOTTOM, GROUND_HEIGHT):
-            for x in range(SCREEN_COLS):
-                char = fill_chars[(x + fill_offset + y) % len(fill_chars)]
-                screen[y][x] = (char, fill_color, 1)
+            screen_y = y - cam_y
+            if 0 <= screen_y < SCREEN_ROWS:
+                for x in range(SCREEN_COLS):
+                    char = fill_chars[(x + fill_offset + y) % len(fill_chars)]
+                    screen[screen_y][x] = (char, fill_color, 1)
 
         # Ground - scrolling at full speed - depth 2 (foreground)
         ground_color = env["ground_color"]
@@ -974,9 +1004,11 @@ class GameEngine:
         if self.player.acid_timer > 0:
             ground_color = random.choice(PSYCHEDELIC_COLORS)
         ground_offset = int(self.scroll_offset)
-        for x in range(SCREEN_COLS):
-            char = ground_chars[(x + ground_offset) % len(ground_chars)]
-            screen[GROUND_HEIGHT][x] = (char, ground_color, 2)
+        ground_screen_y = GROUND_HEIGHT - cam_y
+        if 0 <= ground_screen_y < SCREEN_ROWS:
+            for x in range(SCREEN_COLS):
+                char = ground_chars[(x + ground_offset) % len(ground_chars)]
+                screen[ground_screen_y][x] = (char, ground_color, 2)
 
         # Obstacles - depth 2 (foreground)
         for obs in self.obstacles:
@@ -987,7 +1019,7 @@ class GameEngine:
                 obs_color = random.choice(PSYCHEDELIC_COLORS)
             for i, row in enumerate(obs.char):
                 for j, char in enumerate(row):
-                    x, y = int(obs.x) + j, int(obs.y) + i
+                    x, y = int(obs.x) + j, int(obs.y) + i - cam_y
                     if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
                         if char == ' ':
                             screen[y][x] = (' ', BLACK, 2)
@@ -998,19 +1030,19 @@ class GameEngine:
         for powerup in self.powerups:
             for i, row in enumerate(powerup.char):
                 for j, char in enumerate(row):
-                    x, y = int(powerup.x) + j, int(powerup.y) + i
+                    x, y = int(powerup.x) + j, int(powerup.y) + i - cam_y
                     if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
                         screen[y][x] = (char, powerup.color, 2)
 
         # Fart puffs - depth 2 (foreground)
         for puff in self.fart_puffs:
-            x, y = int(puff.x), int(puff.y)
+            x, y = int(puff.x), int(puff.y) - cam_y
             if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
                 screen[y][x] = (puff.get_char(), LIME, 2)
 
         # Bullets - depth 2 (foreground)
         for bullet in self.bullets:
-            x, y = int(bullet.x), int(bullet.y)
+            x, y = int(bullet.x), int(bullet.y) - cam_y
             for i, char in enumerate(bullet.char):
                 if 0 <= x + i < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
                     screen[y][x + i] = (char, ORANGE, 2)
@@ -1020,7 +1052,7 @@ class GameEngine:
         if acid_level == 3:
             eye_width = len(RAINBOW_EYE[0])
             eye_x = int(self.player.x) + (self.player.width // 2) - (eye_width // 2)
-            eye_y = int(self.player.y) - 1
+            eye_y = int(self.player.y) - 1 - cam_y
 
             for i, row in enumerate(RAINBOW_EYE):
                 for j, char in enumerate(row):
@@ -1033,10 +1065,13 @@ class GameEngine:
         player_color = CYAN
         if self.player.acid_timer > 0:
             player_color = PSYCHEDELIC_COLORS[self.frame % len(PSYCHEDELIC_COLORS)]
+        # Flash during grace period
+        if self.player.grace_period > 0 and (self.frame // 4) % 2 == 0:
+            player_color = WHITE
         player_char = self.player.get_char(self.frame)
         for i, row in enumerate(player_char):
             for j, char in enumerate(row):
-                x, y = int(self.player.x) + j, int(self.player.y) + i
+                x, y = int(self.player.x) + j, int(self.player.y) + i - cam_y
                 if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
                     screen[y][x] = (char, player_color, 2)
 
