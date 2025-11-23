@@ -119,12 +119,14 @@ POWERUP_PISTOL = "pistol"
 POWERUP_JETPACK = "jetpack"
 POWERUP_BEANS = "beans"
 POWERUP_ACID = "acid"
+POWERUP_STOPWATCH = "stopwatch"
 
 POWERUP_CHARS = {
     POWERUP_PISTOL: ["[=>"],
     POWERUP_JETPACK: ["<J>"],
     POWERUP_BEANS: ["{B}"],
     POWERUP_ACID: ["<*>"],
+    POWERUP_STOPWATCH: ["(O)"],
 }
 
 POWERUP_COLORS = {
@@ -132,6 +134,7 @@ POWERUP_COLORS = {
     POWERUP_JETPACK: CYAN,
     POWERUP_BEANS: LIME,
     POWERUP_ACID: MAGENTA,
+    POWERUP_STOPWATCH: YELLOW,
 }
 
 # Generate chiptune sounds
@@ -251,6 +254,20 @@ def generate_acid_sound():
     sound_array = (stereo_wave * 32767).astype(np.int16)
     return pygame.sndarray.make_sound(sound_array)
 
+def generate_stopwatch_sound():
+    """Tick-tock sound"""
+    sample_rate = 22050
+    sounds = []
+    for freq in [800, 600, 800, 600]:
+        duration = 0.05
+        n_samples = int(sample_rate * duration)
+        t = np.linspace(0, duration, n_samples, False)
+        wave = np.sign(np.sin(2 * np.pi * freq * t)) * 0.25
+        stereo_wave = np.column_stack((wave, wave))
+        sound_array = (stereo_wave * 32767).astype(np.int16)
+        sounds.append(pygame.sndarray.make_sound(sound_array))
+    return sounds
+
 class Bullet:
     def __init__(self, x, y):
         self.x = x
@@ -330,20 +347,23 @@ class Player:
         self.vel_y = 0
         self.jumps_left = MAX_JUMPS
         self.on_ground = True
-        self.has_jetpack = False
+        self.jetpack_jumps = 0  # Extra jumps from jetpack
         self.has_beans = False
         self.beans_timer = 0
         self.ammo = 0  # Pistol ammo
         self.acid_timer = 0
 
     def get_max_jumps(self):
-        return 2 if self.has_jetpack else MAX_JUMPS
+        return MAX_JUMPS + (1 if self.jetpack_jumps > 0 else 0)
 
     def jump(self):
         if self.jumps_left > 0:
             self.vel_y = JUMP_FORCE
             self.jumps_left -= 1
             self.on_ground = False
+            # Use jetpack jump if we're doing a double jump
+            if not self.on_ground and self.jetpack_jumps > 0:
+                self.jetpack_jumps -= 1
             return True
         return False
 
@@ -422,6 +442,8 @@ class Game:
         self.spawn_delay = 40
         self.powerup_timer = 0
         self.scroll_speed = BASE_SCROLL_SPEED
+        self.stopwatch_timer = 0
+        self.stopwatch_speed_reduction = 0
         self.music_notes = generate_music()
         self.jump_sound = generate_jump_sound()
         self.death_sound = generate_death_sound()
@@ -429,6 +451,7 @@ class Game:
         self.pickup_sound = generate_pickup_sound()
         self.fart_sound = generate_fart_sound()
         self.acid_sound = generate_acid_sound()
+        self.stopwatch_sounds = generate_stopwatch_sound()
         self.current_note = 0
         self.music_timer = 0
         self.high_score = 0
@@ -470,7 +493,7 @@ class Game:
     def spawn_powerup(self):
         self.powerup_timer -= 1
         if self.powerup_timer <= 0:
-            powerup_type = random.choice([POWERUP_PISTOL, POWERUP_JETPACK, POWERUP_BEANS, POWERUP_ACID])
+            powerup_type = random.choice([POWERUP_PISTOL, POWERUP_JETPACK, POWERUP_BEANS, POWERUP_ACID, POWERUP_STOPWATCH])
             self.powerups.append(Powerup(SCREEN_COLS, powerup_type))
             self.powerup_timer = random.randint(80, 180)
 
@@ -499,16 +522,21 @@ class Game:
                 py + player_height > oy):
                 self.pickup_sound.play()
                 if powerup.type == POWERUP_JETPACK:
-                    self.player.has_jetpack = True
+                    self.player.jetpack_jumps += 10
                     self.player.jumps_left = self.player.get_max_jumps()
                 elif powerup.type == POWERUP_BEANS:
                     self.player.has_beans = True
-                    self.player.beans_timer = 300
+                    self.player.beans_timer = 600
                 elif powerup.type == POWERUP_PISTOL:
                     self.player.ammo += 10
                 elif powerup.type == POWERUP_ACID:
-                    self.player.acid_timer = random.randint(150, 300)  # 5-10 seconds
+                    self.player.acid_timer = random.randint(300, 600)  # 5-10 seconds at 60fps
                     self.acid_sound.play()
+                elif powerup.type == POWERUP_STOPWATCH:
+                    self.stopwatch_timer = 300  # 5 seconds at 60fps
+                    self.stopwatch_speed_reduction = self.scroll_speed * 0.6
+                    for sound in self.stopwatch_sounds:
+                        sound.play()
                 self.powerups.remove(powerup)
 
     def check_bullet_hits(self):
@@ -542,7 +570,17 @@ class Game:
         self.spawn_obstacle()
         self.spawn_powerup()
 
-        self.scroll_speed = BASE_SCROLL_SPEED + (self.score / 1000)
+        # Calculate base scroll speed
+        base_speed = BASE_SCROLL_SPEED + (self.score / 1000)
+
+        # Apply stopwatch slowdown
+        if self.stopwatch_timer > 0:
+            self.stopwatch_timer -= 1
+            effect_ratio = self.stopwatch_timer / 300
+            self.scroll_speed = base_speed - (self.stopwatch_speed_reduction * effect_ratio)
+        else:
+            self.scroll_speed = base_speed
+            self.stopwatch_speed_reduction = 0
 
         for obs in self.obstacles:
             obs.update(self.scroll_speed)
@@ -573,7 +611,7 @@ class Game:
         self.check_bullet_hits()
 
         # Random fart from beans
-        if self.player.has_beans and random.random() < 0.01:
+        if self.player.has_beans and random.random() < 0.005:
             self.player.fart_jump()
             self.fart_sound.play()
             # Add fart puff
@@ -588,7 +626,7 @@ class Game:
             self.score += 1
 
         self.music_timer += 1
-        if self.music_timer >= 8:
+        if self.music_timer >= 16:
             self.music_notes[self.current_note].play()
             self.current_note = (self.current_note + 1) % len(self.music_notes)
             self.music_timer = 0
@@ -671,6 +709,8 @@ class Game:
         self.spawn_delay = 40
         self.powerup_timer = 0
         self.scroll_speed = BASE_SCROLL_SPEED
+        self.stopwatch_timer = 0
+        self.stopwatch_speed_reduction = 0
 
 def render_buffer(screen, font, buffer):
     for y, row in enumerate(buffer):
@@ -716,8 +756,9 @@ def show_intro(screen, font, high_scores):
     y = 14
     powerups = [
         "POWERUPS (run into to collect):",
-        "[=> Gun (10 shots)  <J> Jetpack",
+        "[=> Gun (10 shots)  <J> Jetpack (10)",
         "{B} Beans (farts!)  <*> Acid Trip",
+        "(O) Stopwatch (slow time)",
     ]
     for i, line in enumerate(powerups):
         color = ORANGE if i == 0 else WHITE
@@ -793,7 +834,7 @@ def get_player_name(screen, font, score):
                 elif len(name) < 5 and event.unicode.isalnum():
                     name += event.unicode.upper()
 
-        clock.tick(30)
+        clock.tick(60)
 
 def show_game_over(screen, font, score, high_score):
     lines = [
@@ -846,7 +887,7 @@ def main():
                 elif event.key == pygame.K_ESCAPE:
                     pygame.quit()
                     sys.exit()
-        clock.tick(30)
+        clock.tick(60)
 
     running = True
     while running:
@@ -906,16 +947,16 @@ def main():
             screen.blit(surface, (10, y_offset))
             y_offset += 18
 
-        # Jetpack (permanent)
-        if game.player.has_jetpack:
-            jet_text = "<J> JETPACK"
+        # Jetpack jumps
+        if game.player.jetpack_jumps > 0:
+            jet_text = f"<J> x{game.player.jetpack_jumps}"
             surface = font.render(jet_text, True, CYAN)
             screen.blit(surface, (10, y_offset))
             y_offset += 18
 
         # Beans timer
         if game.player.has_beans:
-            secs = game.player.beans_timer // 30
+            secs = game.player.beans_timer // 60
             beans_text = f"{{B}} {secs}s"
             surface = font.render(beans_text, True, LIME)
             screen.blit(surface, (10, y_offset))
@@ -923,9 +964,17 @@ def main():
 
         # Acid timer
         if game.player.acid_timer > 0:
-            secs = game.player.acid_timer // 30
+            secs = game.player.acid_timer // 60
             acid_text = f"<*> {secs}s"
             surface = font.render(acid_text, True, MAGENTA)
+            screen.blit(surface, (10, y_offset))
+            y_offset += 18
+
+        # Stopwatch timer
+        if game.stopwatch_timer > 0:
+            secs = game.stopwatch_timer // 60
+            watch_text = f"(O) {secs}s"
+            surface = font.render(watch_text, True, YELLOW)
             screen.blit(surface, (10, y_offset))
             y_offset += 18
 
@@ -933,7 +982,7 @@ def main():
             show_game_over(screen, font, game.score, game.high_score)
 
         pygame.display.flip()
-        clock.tick(30)
+        clock.tick(60)
 
     pygame.quit()
 

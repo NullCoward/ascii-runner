@@ -76,19 +76,22 @@ const POWERUP_PISTOL = "pistol";
 const POWERUP_JETPACK = "jetpack";
 const POWERUP_BEANS = "beans";
 const POWERUP_ACID = "acid";
+const POWERUP_STOPWATCH = "stopwatch";
 
 const POWERUP_CHARS = {
     [POWERUP_PISTOL]: ["[=>"],
     [POWERUP_JETPACK]: ["<J>"],
     [POWERUP_BEANS]: ["{B}"],
-    [POWERUP_ACID]: ["<*>"]
+    [POWERUP_ACID]: ["<*>"],
+    [POWERUP_STOPWATCH]: ["(O)"]
 };
 
 const POWERUP_COLORS = {
     [POWERUP_PISTOL]: ORANGE,
     [POWERUP_JETPACK]: CYAN,
     [POWERUP_BEANS]: LIME,
-    [POWERUP_ACID]: MAGENTA
+    [POWERUP_ACID]: MAGENTA,
+    [POWERUP_STOPWATCH]: YELLOW
 };
 
 // Audio context
@@ -235,6 +238,15 @@ function playAcidSound() {
     oscillator.stop(audioCtx.currentTime + 0.5);
 }
 
+function playStopwatchSound() {
+    if (!audioCtx) return;
+
+    // Tick-tock sound
+    [800, 600, 800, 600].forEach((freq, i) => {
+        setTimeout(() => playSquareWave(freq, 0.05, 0.25), i * 80);
+    });
+}
+
 // Music system
 const MELODY = [
     [262, 0.15], [330, 0.15], [392, 0.15], [523, 0.3],
@@ -341,7 +353,7 @@ class Player {
         this.velY = 0;
         this.jumpsLeft = MAX_JUMPS;
         this.onGround = true;
-        this.hasJetpack = false;
+        this.jetpackJumps = 0; // Extra jumps from jetpack
         this.hasBeans = false;
         this.beansTimer = 0;
         this.ammo = 0;
@@ -349,7 +361,7 @@ class Player {
     }
 
     getMaxJumps() {
-        return this.hasJetpack ? 2 : MAX_JUMPS;
+        return MAX_JUMPS + (this.jetpackJumps > 0 ? 1 : 0);
     }
 
     jump() {
@@ -357,6 +369,10 @@ class Player {
             this.velY = JUMP_FORCE;
             this.jumpsLeft -= 1;
             this.onGround = false;
+            // Use jetpack jump if we're doing a double jump
+            if (!this.onGround && this.jetpackJumps > 0) {
+                this.jetpackJumps -= 1;
+            }
             return true;
         }
         return false;
@@ -500,6 +516,8 @@ class Game {
         this.spawnDelay = 40;
         this.powerupTimer = 0;
         this.scrollSpeed = BASE_SCROLL_SPEED;
+        this.stopwatchTimer = 0;
+        this.stopwatchSpeedReduction = 0;
     }
 
     spawnObstacle() {
@@ -543,7 +561,7 @@ class Game {
     spawnPowerup() {
         this.powerupTimer -= 1;
         if (this.powerupTimer <= 0) {
-            const types = [POWERUP_PISTOL, POWERUP_JETPACK, POWERUP_BEANS, POWERUP_ACID];
+            const types = [POWERUP_PISTOL, POWERUP_JETPACK, POWERUP_BEANS, POWERUP_ACID, POWERUP_STOPWATCH];
             const type = types[Math.floor(Math.random() * types.length)];
             this.powerups.push(new Powerup(SCREEN_COLS, type));
             this.powerupTimer = Math.floor(Math.random() * 101) + 80;
@@ -589,16 +607,20 @@ class Game {
                 playPickupSound();
 
                 if (powerup.type === POWERUP_JETPACK) {
-                    this.player.hasJetpack = true;
+                    this.player.jetpackJumps += 10;
                     this.player.jumpsLeft = this.player.getMaxJumps();
                 } else if (powerup.type === POWERUP_BEANS) {
                     this.player.hasBeans = true;
-                    this.player.beansTimer = 300;
+                    this.player.beansTimer = 600;
                 } else if (powerup.type === POWERUP_PISTOL) {
                     this.player.ammo += 10;
                 } else if (powerup.type === POWERUP_ACID) {
-                    this.player.acidTimer = Math.floor(Math.random() * 151) + 150;
+                    this.player.acidTimer = Math.floor(Math.random() * 301) + 300;
                     playAcidSound();
+                } else if (powerup.type === POWERUP_STOPWATCH) {
+                    this.stopwatchTimer = 300; // 5 seconds at 60fps
+                    this.stopwatchSpeedReduction = this.scrollSpeed * 0.6; // Reduce by 60%
+                    playStopwatchSound();
                 }
 
                 this.powerups.splice(i, 1);
@@ -645,7 +667,19 @@ class Game {
         this.spawnObstacle();
         this.spawnPowerup();
 
-        this.scrollSpeed = BASE_SCROLL_SPEED + (this.score / 1000);
+        // Calculate base scroll speed
+        let baseSpeed = BASE_SCROLL_SPEED + (this.score / 1000);
+
+        // Apply stopwatch slowdown
+        if (this.stopwatchTimer > 0) {
+            this.stopwatchTimer -= 1;
+            // Gradually reduce the slowdown effect as timer runs out
+            const effectRatio = this.stopwatchTimer / 300;
+            this.scrollSpeed = baseSpeed - (this.stopwatchSpeedReduction * effectRatio);
+        } else {
+            this.scrollSpeed = baseSpeed;
+            this.stopwatchSpeedReduction = 0;
+        }
 
         for (const obs of this.obstacles) {
             obs.update(this.scrollSpeed);
@@ -683,7 +717,7 @@ class Game {
         this.checkBulletHits();
 
         // Random fart from beans
-        if (this.player.hasBeans && Math.random() < 0.01) {
+        if (this.player.hasBeans && Math.random() < 0.005) {
             this.player.fartJump();
             playFartSound();
             this.fartPuffs.push(new FartPuff(this.player.x + 1, this.player.y + 3));
@@ -701,7 +735,7 @@ class Game {
 
         // Music
         this.musicTimer += 1;
-        if (this.musicTimer >= 8) {
+        if (this.musicTimer >= 16) {
             const [freq, dur] = MELODY[this.currentNote];
             playSquareWave(freq, dur, 0.2);
             this.currentNote = (this.currentNote + 1) % MELODY.length;
@@ -849,23 +883,30 @@ class GameRenderer {
             yOffset += 18;
         }
 
-        if (game.player.hasJetpack) {
+        if (game.player.jetpackJumps > 0) {
             this.ctx.fillStyle = CYAN;
-            this.ctx.fillText('<J> JETPACK', 10, yOffset);
+            this.ctx.fillText(`<J> x${game.player.jetpackJumps}`, 10, yOffset);
             yOffset += 18;
         }
 
         if (game.player.hasBeans) {
             this.ctx.fillStyle = LIME;
-            const secs = Math.floor(game.player.beansTimer / 30);
+            const secs = Math.floor(game.player.beansTimer / 60);
             this.ctx.fillText(`{B} ${secs}s`, 10, yOffset);
             yOffset += 18;
         }
 
         if (game.player.acidTimer > 0) {
             this.ctx.fillStyle = MAGENTA;
-            const secs = Math.floor(game.player.acidTimer / 30);
+            const secs = Math.floor(game.player.acidTimer / 60);
             this.ctx.fillText(`<*> ${secs}s`, 10, yOffset);
+            yOffset += 18;
+        }
+
+        if (game.stopwatchTimer > 0) {
+            this.ctx.fillStyle = YELLOW;
+            const secs = Math.floor(game.stopwatchTimer / 60);
+            this.ctx.fillText(`(O) ${secs}s`, 10, yOffset);
         }
     }
 
@@ -905,8 +946,9 @@ class GameRenderer {
         // Powerups info
         const powerups = [
             "POWERUPS (run into to collect):",
-            "[=> Gun (10 shots)  <J> Jetpack",
-            "{B} Beans (farts!)  <*> Acid Trip"
+            "[=> Gun (10 shots)  <J> Jetpack (10)",
+            "{B} Beans (farts!)  <*> Acid Trip",
+            "(O) Stopwatch (slow time)"
         ];
 
         powerups.forEach((line, i) => {
@@ -962,8 +1004,14 @@ class GameController {
         this.scoreEntered = false;
         this.playerName = '';
 
+        // Fixed timestep for smooth gameplay
+        this.targetFPS = 60;
+        this.frameTime = 1000 / this.targetFPS;
+        this.lastTime = 0;
+        this.accumulator = 0;
+
         this.setupInput();
-        this.gameLoop();
+        this.gameLoop(0);
     }
 
     setupInput() {
@@ -1051,19 +1099,31 @@ class GameController {
         this.renderer.ctx.fillText("Press ENTER when done", SCREEN_WIDTH / 2 - 100, 320);
     }
 
-    gameLoop() {
+    gameLoop(currentTime) {
+        const deltaTime = currentTime - this.lastTime;
+        this.lastTime = currentTime;
+
+        // Prevent spiral of death on slow systems
+        const cappedDelta = Math.min(deltaTime, 100);
+        this.accumulator += cappedDelta;
+
         if (this.state === 'intro') {
             this.renderer.renderIntro(this.game.loadHighScores());
         } else if (this.state === 'playing') {
-            this.game.update();
+            // Fixed timestep updates
+            while (this.accumulator >= this.frameTime) {
+                this.game.update();
+                this.accumulator -= this.frameTime;
 
-            if (this.game.gameOver && !this.scoreEntered) {
-                if (this.game.isHighScore(this.game.score)) {
-                    this.state = 'highscore';
-                    this.playerName = '';
-                } else {
-                    this.state = 'gameover';
-                    this.scoreEntered = true;
+                if (this.game.gameOver && !this.scoreEntered) {
+                    if (this.game.isHighScore(this.game.score)) {
+                        this.state = 'highscore';
+                        this.playerName = '';
+                    } else {
+                        this.state = 'gameover';
+                        this.scoreEntered = true;
+                    }
+                    break;
                 }
             }
 
@@ -1079,7 +1139,7 @@ class GameController {
             this.renderHighScoreEntry();
         }
 
-        requestAnimationFrame(() => this.gameLoop());
+        requestAnimationFrame((time) => this.gameLoop(time));
     }
 }
 
