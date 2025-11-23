@@ -13,8 +13,8 @@ const GROUND_HEIGHT = 20;
 const GRAVITY = 0.10;
 const JUMP_FORCE = -1.1;
 const MAX_JUMPS = 1;
-const BASE_SCROLL_SPEED = 0.6;
-const SPEED_PROGRESSION = 2000; // Score needed to double speed
+const BASE_SCROLL_SPEED = 0.3;
+const SPEED_PROGRESSION = 3000; // Score needed to double speed
 
 // Colors
 const BLACK = '#000000';

@@ -53,8 +53,8 @@ GROUND_HEIGHT = 20
 GRAVITY = 0.10
 JUMP_FORCE = -1.1
 MAX_JUMPS = 1
-BASE_SCROLL_SPEED = 0.6
-SPEED_PROGRESSION = 2000  # Score needed to double speed
+BASE_SCROLL_SPEED = 0.3
+SPEED_PROGRESSION = 3000  # Score needed to double speed
 
 # Colors
 BLACK = (0, 0, 0)
