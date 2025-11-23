@@ -799,7 +799,7 @@ class Game:
         self.lava_blobs = []
         self.score = 0
         self.game_over = False
-        self.spawn_timer = 90  # Give player 1.5 seconds before first obstacle
+        self.spawn_timer = 180  # Give player 3 seconds before first obstacle
         self.spawn_delay = 40
         self.powerup_timer = 120  # Delay first powerup too
         self.scroll_speed = BASE_SCROLL_SPEED

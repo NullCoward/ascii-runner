@@ -32,6 +32,75 @@ const BLUE = '#6464ff';
 
 const PSYCHEDELIC_COLORS = [MAGENTA, CYAN, PINK, PURPLE, ORANGE, LIME, YELLOW, RED, BLUE];
 
+// Environment system
+const ENV_CHANGE_INTERVAL = 2000; // Points between environment changes
+const ENV_TRANSITION_FRAMES = 120; // 2 seconds at 60fps for smooth transition
+
+const ENVIRONMENTS = {
+    PLAINS: 'plains',
+    SNOW: 'snow',
+    MOUNTAINS: 'mountains'
+};
+
+const ENV_COLORS = {
+    [ENVIRONMENTS.PLAINS]: {
+        sky: '#1a1a2e',
+        ground: GREEN,
+        groundAlt: '#00aa00'
+    },
+    [ENVIRONMENTS.SNOW]: {
+        sky: '#2a3a4a',
+        ground: '#ffffff',
+        groundAlt: '#ddddff'
+    },
+    [ENVIRONMENTS.MOUNTAINS]: {
+        sky: '#0a0a1e',
+        ground: '#886644',
+        groundAlt: '#664422'
+    }
+};
+
+// Background ASCII art
+const SNOWMAN_CHAR = [
+    "  _  ",
+    " (o) ",
+    "(ooo)",
+    " /_\\ "
+];
+
+const SNOW_DRIFT_CHAR = [
+    "  __  ",
+    "_/  \\_"
+];
+
+const MOUNTAIN_CHAR = [
+    "     /\\     ",
+    "    /  \\    ",
+    "   / /\\ \\   ",
+    "  / /  \\ \\  ",
+    " / /    \\ \\ ",
+    "/_/______\\_\\"
+];
+
+const SMALL_MOUNTAIN_CHAR = [
+    "   /\\   ",
+    "  /  \\  ",
+    " /    \\ ",
+    "/______\\"
+];
+
+const SUN_CHAR = [
+    " \\ | / ",
+    "-- O --",
+    " / | \\ "
+];
+
+const MOON_CHAR = [
+    " .-. ",
+    "( @ )",
+    " '-' "
+];
+
 // Character definitions - more detailed
 const PLAYER_CHAR = [
     "  ,O,  ",
@@ -394,6 +463,47 @@ class LavaBlob {
     }
 }
 
+// Background elements
+class BackgroundElement {
+    constructor(x, char, speed = 0.3) {
+        this.x = x;
+        this.char = char;
+        this.height = char.length;
+        this.width = Math.max(...char.map(row => row.length));
+        this.y = GROUND_HEIGHT - this.height;
+        this.speed = speed; // Parallax speed (slower than foreground)
+    }
+
+    update(scrollSpeed) {
+        this.x -= scrollSpeed * this.speed;
+    }
+
+    isOffScreen() {
+        return this.x + this.width < 0;
+    }
+}
+
+class Snowflake {
+    constructor() {
+        this.x = Math.random() * SCREEN_COLS;
+        this.y = Math.random() * GROUND_HEIGHT;
+        this.speed = Math.random() * 0.3 + 0.1;
+        this.drift = Math.random() * 0.1 - 0.05;
+        this.char = Math.random() > 0.5 ? '*' : '.';
+    }
+
+    update() {
+        this.y += this.speed;
+        this.x += this.drift;
+        if (this.y > GROUND_HEIGHT) {
+            this.y = 0;
+            this.x = Math.random() * SCREEN_COLS;
+        }
+        if (this.x < 0) this.x = SCREEN_COLS - 1;
+        if (this.x >= SCREEN_COLS) this.x = 0;
+    }
+}
+
 class Powerup {
     constructor(x, type) {
         this.x = x;
@@ -586,12 +696,28 @@ class Game {
         this.lavaBlobs = [];
         this.score = 0;
         this.gameOver = false;
-        this.spawnTimer = 90; // Give player 1.5 seconds before first obstacle
+        this.spawnTimer = 180; // Give player 3 seconds before first obstacle
         this.spawnDelay = 40;
         this.powerupTimer = 120; // Delay first powerup too
         this.scrollSpeed = BASE_SCROLL_SPEED;
         this.stopwatchTimer = 0;
         this.stopwatchSpeedReduction = 0;
+
+        // Environment system
+        this.currentEnv = ENVIRONMENTS.PLAINS;
+        this.nextEnv = ENVIRONMENTS.PLAINS;
+        this.envTransition = 0; // 0 = no transition, 1 = full transition
+        this.backgroundElements = [];
+        this.snowflakes = [];
+        this.bgSpawnTimer = 0;
+
+        // Initialize some snowflakes for when we hit snow
+        for (let i = 0; i < 30; i++) {
+            this.snowflakes.push(new Snowflake());
+        }
+
+        // Ground height variation for mountains
+        this.groundHeights = new Array(SCREEN_COLS).fill(0);
     }
 
     spawnObstacle() {
@@ -812,6 +938,26 @@ class Game {
         this.bullets = this.bullets.filter(b => !b.isOffScreen());
         this.fartPuffs = this.fartPuffs.filter(p => !p.isDone());
 
+        // Update environment based on score
+        this.updateEnvironment();
+
+        // Update background elements
+        for (const bg of this.backgroundElements) {
+            bg.update(this.scrollSpeed);
+        }
+        this.backgroundElements = this.backgroundElements.filter(bg => !bg.isOffScreen());
+
+        // Update snowflakes
+        for (const flake of this.snowflakes) {
+            flake.update();
+        }
+
+        // Spawn background elements based on environment
+        this.spawnBackgroundElements();
+
+        // Update ground heights for mountains
+        this.updateGroundHeights();
+
         this.checkPowerupCollision();
         this.checkBulletHits();
 
@@ -842,10 +988,173 @@ class Game {
         }
     }
 
+    updateEnvironment() {
+        // Determine which environment we should be in based on score
+        const envIndex = Math.floor(this.score / ENV_CHANGE_INTERVAL) % 3;
+        const envList = [ENVIRONMENTS.PLAINS, ENVIRONMENTS.SNOW, ENVIRONMENTS.MOUNTAINS];
+        const targetEnv = envList[envIndex];
+
+        // Start transition if environment changed
+        if (targetEnv !== this.nextEnv) {
+            this.nextEnv = targetEnv;
+            this.envTransition = 0;
+        }
+
+        // Progress transition
+        if (this.currentEnv !== this.nextEnv) {
+            this.envTransition += 1 / ENV_TRANSITION_FRAMES;
+            if (this.envTransition >= 1) {
+                this.currentEnv = this.nextEnv;
+                this.envTransition = 0;
+            }
+        }
+    }
+
+    spawnBackgroundElements() {
+        this.bgSpawnTimer -= 1;
+        if (this.bgSpawnTimer <= 0) {
+            const activeEnv = this.envTransition > 0.5 ? this.nextEnv : this.currentEnv;
+
+            if (activeEnv === ENVIRONMENTS.SNOW) {
+                // Spawn snowmen and snow drifts
+                if (Math.random() < 0.3) {
+                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, SNOWMAN_CHAR, 0.4));
+                } else {
+                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, SNOW_DRIFT_CHAR, 0.3));
+                }
+                this.bgSpawnTimer = Math.floor(Math.random() * 60) + 40;
+            } else if (activeEnv === ENVIRONMENTS.MOUNTAINS) {
+                // Spawn mountains in background
+                if (Math.random() < 0.4) {
+                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, MOUNTAIN_CHAR, 0.15));
+                } else {
+                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, SMALL_MOUNTAIN_CHAR, 0.2));
+                }
+                this.bgSpawnTimer = Math.floor(Math.random() * 100) + 80;
+            } else {
+                // Plains - occasional elements
+                this.bgSpawnTimer = Math.floor(Math.random() * 120) + 100;
+            }
+        }
+    }
+
+    updateGroundHeights() {
+        const activeEnv = this.envTransition > 0.5 ? this.nextEnv : this.currentEnv;
+
+        // Shift ground heights left
+        for (let i = 0; i < SCREEN_COLS - 1; i++) {
+            this.groundHeights[i] = this.groundHeights[i + 1];
+        }
+
+        // Generate new height for rightmost column
+        if (activeEnv === ENVIRONMENTS.MOUNTAINS) {
+            // Hilly terrain - smooth sine wave
+            const targetHeight = Math.sin(this.frame * 0.02) * 2;
+            this.groundHeights[SCREEN_COLS - 1] = targetHeight;
+        } else {
+            // Flat terrain - gradually return to 0
+            const current = this.groundHeights[SCREEN_COLS - 2] || 0;
+            this.groundHeights[SCREEN_COLS - 1] = current * 0.95;
+        }
+    }
+
+    // Helper to interpolate colors during transition
+    lerpColor(color1, color2, t) {
+        // Parse hex colors
+        const c1 = parseInt(color1.slice(1), 16);
+        const c2 = parseInt(color2.slice(1), 16);
+
+        const r1 = (c1 >> 16) & 255, g1 = (c1 >> 8) & 255, b1 = c1 & 255;
+        const r2 = (c2 >> 16) & 255, g2 = (c2 >> 8) & 255, b2 = c2 & 255;
+
+        const r = Math.round(r1 + (r2 - r1) * t);
+        const g = Math.round(g1 + (g2 - g1) * t);
+        const b = Math.round(b1 + (b2 - b1) * t);
+
+        return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+    }
+
+    getEnvironmentColors() {
+        if (this.envTransition === 0) {
+            return ENV_COLORS[this.currentEnv];
+        }
+
+        const from = ENV_COLORS[this.currentEnv];
+        const to = ENV_COLORS[this.nextEnv];
+
+        return {
+            sky: this.lerpColor(from.sky, to.sky, this.envTransition),
+            ground: this.lerpColor(from.ground, to.ground, this.envTransition),
+            groundAlt: this.lerpColor(from.groundAlt, to.groundAlt, this.envTransition)
+        };
+    }
+
     getScreenBuffer() {
         const screen = Array(SCREEN_ROWS).fill(null).map(() =>
             Array(SCREEN_COLS).fill(null).map(() => [' ', BLACK])
         );
+
+        const envColors = this.getEnvironmentColors();
+        const activeEnv = this.envTransition > 0.5 ? this.nextEnv : this.currentEnv;
+
+        // Draw sun/moon based on score
+        const dayProgress = (this.score % 4000) / 4000; // Full cycle every 4000 points
+        const celestialX = Math.floor(dayProgress * SCREEN_COLS);
+        const celestialY = Math.floor(3 + Math.sin(dayProgress * Math.PI) * -2);
+
+        if (dayProgress < 0.5) {
+            // Sun (first half of cycle)
+            const sunColor = YELLOW;
+            for (let i = 0; i < SUN_CHAR.length; i++) {
+                for (let j = 0; j < SUN_CHAR[i].length; j++) {
+                    const x = celestialX + j - 3;
+                    const y = celestialY + i;
+                    if (x >= 0 && x < SCREEN_COLS && y >= 0 && y < SCREEN_ROWS && SUN_CHAR[i][j] !== ' ') {
+                        screen[y][x] = [SUN_CHAR[i][j], sunColor];
+                    }
+                }
+            }
+        } else {
+            // Moon (second half of cycle)
+            const moonColor = '#aaaaff';
+            for (let i = 0; i < MOON_CHAR.length; i++) {
+                for (let j = 0; j < MOON_CHAR[i].length; j++) {
+                    const x = celestialX + j - 2;
+                    const y = celestialY + i;
+                    if (x >= 0 && x < SCREEN_COLS && y >= 0 && y < SCREEN_ROWS && MOON_CHAR[i][j] !== ' ') {
+                        screen[y][x] = [MOON_CHAR[i][j], moonColor];
+                    }
+                }
+            }
+        }
+
+        // Draw background elements (mountains, snowmen, etc) - behind everything
+        for (const bg of this.backgroundElements) {
+            const bgColor = activeEnv === ENVIRONMENTS.SNOW ? '#aaccff' : '#666688';
+            for (let i = 0; i < bg.char.length; i++) {
+                for (let j = 0; j < bg.char[i].length; j++) {
+                    const x = Math.floor(bg.x) + j;
+                    const y = bg.y + i;
+                    if (x >= 0 && x < SCREEN_COLS && y >= 0 && y < SCREEN_ROWS && bg.char[i][j] !== ' ') {
+                        screen[y][x] = [bg.char[i][j], bgColor];
+                    }
+                }
+            }
+        }
+
+        // Draw snowflakes in snow environment
+        if (activeEnv === ENVIRONMENTS.SNOW || (this.envTransition > 0 && this.nextEnv === ENVIRONMENTS.SNOW)) {
+            const flakeAlpha = activeEnv === ENVIRONMENTS.SNOW ? 1 : this.envTransition;
+            if (flakeAlpha > 0.3) {
+                for (const flake of this.snowflakes) {
+                    const x = Math.floor(flake.x);
+                    const y = Math.floor(flake.y);
+                    if (x >= 0 && x < SCREEN_COLS && y >= 0 && y < SCREEN_ROWS) {
+                        screen[y][x] = [flake.char, WHITE];
+                    }
+                }
+            }
+        }
 
         // Lava blobs
         for (const blob of this.lavaBlobs) {
@@ -856,14 +1165,26 @@ class Game {
             }
         }
 
-        // Ground
-        let groundColor = GREEN;
+        // Ground with variable height
+        let groundColor = envColors.ground;
+        let groundAltColor = envColors.groundAlt;
         if (this.player.acidTimer > 0) {
             groundColor = PSYCHEDELIC_COLORS[Math.floor(Math.random() * PSYCHEDELIC_COLORS.length)];
+            groundAltColor = groundColor;
         }
+
         for (let x = 0; x < SCREEN_COLS; x++) {
-            const char = x % 4 === 0 ? '#' : '=';
-            screen[GROUND_HEIGHT][x] = [char, groundColor];
+            const heightOffset = Math.floor(this.groundHeights[x] || 0);
+            const groundY = GROUND_HEIGHT + heightOffset;
+
+            // Draw ground and fill below
+            for (let y = groundY; y < SCREEN_ROWS; y++) {
+                if (y >= 0 && y < SCREEN_ROWS) {
+                    const char = (y === groundY) ? (x % 4 === 0 ? '#' : '=') : '.';
+                    const color = (y === groundY) ? groundColor : groundAltColor;
+                    screen[y][x] = [char, color];
+                }
+            }
         }
 
         // Obstacles
@@ -1108,22 +1429,27 @@ class GameRenderer {
 
     renderGameOver(score, highScore) {
         const lines = [
-            "              +-----------------------------------+",
-            "              |                                   |",
-            "              |          GAME  OVER!              |",
-            "              |                                   |",
-            `              |      Score: ${String(score).padStart(6)}                |`,
-            `              |      High:  ${String(highScore).padStart(6)}                |`,
-            "              |                                   |",
-            "              |   [SPACE] - Play Again            |",
-            "              |   [ESC]   - Quit                  |",
-            "              |                                   |",
-            "              +-----------------------------------+"
+            "+-----------------------------------+",
+            "|                                   |",
+            "|          GAME  OVER!              |",
+            "|                                   |",
+            `|      Score: ${String(score).padStart(6)}                |`,
+            `|      High:  ${String(highScore).padStart(6)}                |`,
+            "|                                   |",
+            "|   [SPACE] - Play Again            |",
+            "|   [ESC]   - Quit                  |",
+            "|                                   |",
+            "+-----------------------------------+"
         ];
+
+        // Center the box horizontally
+        const boxWidth = lines[0].length * CHAR_WIDTH;
+        const startX = (SCREEN_WIDTH - boxWidth) / 2;
+        const startY = 6 * CHAR_HEIGHT;
 
         this.ctx.fillStyle = RED;
         lines.forEach((line, i) => {
-            this.ctx.fillText(line, 0, (6 + i) * CHAR_HEIGHT);
+            this.ctx.fillText(line, startX, startY + (i * CHAR_HEIGHT));
         });
     }
 }
