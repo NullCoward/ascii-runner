@@ -15,21 +15,6 @@ const BASE_SCROLL_SPEED = 0.3;
 const SPEED_PROGRESSION = 3000; // Score needed to double speed
 const JUMP_CLEARANCE_MULTIPLIER = 1.2; // Jump 1.2x the tallest obstacle
 
-// Calculate max obstacle height dynamically
-function getMaxObstacleHeight() {
-    const allObstacles = [
-        ...OBSTACLE_CHARS_EASY,
-        BIRD_CHAR, COW_CHAR, HOUSE_CHAR, CACTUS_CHAR, SPIKE_CHAR
-    ];
-    return Math.max(...allObstacles.map(obs => obs.length));
-}
-
-// Calculate jump physics based on obstacle size
-const MAX_OBSTACLE_HEIGHT = getMaxObstacleHeight();
-const DESIRED_JUMP_HEIGHT = MAX_OBSTACLE_HEIGHT * JUMP_CLEARANCE_MULTIPLIER;
-const GRAVITY = 0.05; // Base gravity for good feel
-const JUMP_FORCE = -Math.sqrt(2 * GRAVITY * DESIRED_JUMP_HEIGHT); // v = sqrt(2gh)
-
 // Obstacles with flat tops that can be stood on
 const FLAT_TOP_OBSTACLES = ['easy']; // Crates, barrels, rock piles have flat tops
 
@@ -204,6 +189,21 @@ const SPIKE_CHAR = [
     " /\\ /\\ ",
     "/\\/\\/\\"
 ];
+
+// Calculate max obstacle height dynamically (must be after obstacle definitions)
+function getMaxObstacleHeight() {
+    const allObstacles = [
+        ...OBSTACLE_CHARS_EASY,
+        BIRD_CHAR, COW_CHAR, HOUSE_CHAR, CACTUS_CHAR, SPIKE_CHAR
+    ];
+    return Math.max(...allObstacles.map(obs => obs.length));
+}
+
+// Calculate jump physics based on obstacle size
+const MAX_OBSTACLE_HEIGHT = getMaxObstacleHeight();
+const DESIRED_JUMP_HEIGHT = MAX_OBSTACLE_HEIGHT * JUMP_CLEARANCE_MULTIPLIER;
+const GRAVITY = 0.05; // Base gravity for good feel
+const JUMP_FORCE = -Math.sqrt(2 * GRAVITY * DESIRED_JUMP_HEIGHT); // v = sqrt(2gh)
 
 // Powerup types
 const POWERUP_PISTOL = "pistol";
