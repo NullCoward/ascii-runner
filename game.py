@@ -50,11 +50,16 @@ SCREEN_WIDTH = SCREEN_COLS * CHAR_WIDTH
 SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT
 
 GROUND_HEIGHT = 20
-GRAVITY = 0.07
-JUMP_FORCE = -1.0
+GRAVITY = 0.03
+JUMP_FORCE = -1.1
 MAX_JUMPS = 1
 BASE_SCROLL_SPEED = 0.3
 SPEED_PROGRESSION = 3000  # Score needed to double speed
+
+# Jump physics calculated for 2x largest obstacle (house: 8 tall, 10 wide)
+# Height: 1.1^2 / (2*0.03) = 20 rows (need 16)
+# Time: 1.1/0.03 * 2 = 73 frames
+# Horizontal: 73 * 0.3 = 22 cols (need 20)
 
 # Colors
 BLACK = (0, 0, 0)

@@ -10,11 +10,16 @@ const SCREEN_WIDTH = SCREEN_COLS * CHAR_WIDTH;
 const SCREEN_HEIGHT = SCREEN_ROWS * CHAR_HEIGHT;
 
 const GROUND_HEIGHT = 20;
-const GRAVITY = 0.07;
-const JUMP_FORCE = -1.0;
+const GRAVITY = 0.03;
+const JUMP_FORCE = -1.1;
 const MAX_JUMPS = 1;
 const BASE_SCROLL_SPEED = 0.3;
 const SPEED_PROGRESSION = 3000; // Score needed to double speed
+
+// Jump physics calculated for 2x largest obstacle (house: 8 tall, 10 wide)
+// Height: 1.1^2 / (2*0.03) = 20 rows (need 16)
+// Time: 1.1/0.03 * 2 = 73 frames
+// Horizontal: 73 * 0.3 = 22 cols (need 20)
 
 // Colors
 const BLACK = '#000000';
