@@ -482,12 +482,13 @@ class LavaBlob {
 
 // Background elements
 class BackgroundElement {
-    constructor(x, char, speed = 0.3) {
+    constructor(x, char, speed = 0.3, heightOffset = 6) {
         this.x = x;
         this.char = char;
         this.height = char.length;
         this.width = Math.max(...char.map(row => row.length));
-        this.y = GROUND_HEIGHT - this.height;
+        // Position higher up to look distant (not on ground level)
+        this.y = GROUND_HEIGHT - this.height - heightOffset;
         this.speed = speed; // Parallax speed (slower than foreground)
     }
 
@@ -1050,19 +1051,19 @@ class Game {
             const activeEnv = this.envTransition > 0.5 ? this.nextEnv : this.currentEnv;
 
             if (activeEnv === ENVIRONMENTS.SNOW) {
-                // Spawn snowmen and snow drifts
+                // Spawn snowmen and snow drifts - positioned in background
                 if (Math.random() < 0.3) {
-                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, SNOWMAN_CHAR, 0.4));
+                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, SNOWMAN_CHAR, 0.4, 4));
                 } else {
-                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, SNOW_DRIFT_CHAR, 0.3));
+                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, SNOW_DRIFT_CHAR, 0.3, 3));
                 }
                 this.bgSpawnTimer = Math.floor(Math.random() * 60) + 40;
             } else if (activeEnv === ENVIRONMENTS.MOUNTAINS) {
-                // Spawn mountains in background
+                // Spawn mountains in background - high up to look distant
                 if (Math.random() < 0.4) {
-                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, MOUNTAIN_CHAR, 0.15));
+                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, MOUNTAIN_CHAR, 0.15, 2));
                 } else {
-                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, SMALL_MOUNTAIN_CHAR, 0.2));
+                    this.backgroundElements.push(new BackgroundElement(SCREEN_COLS + 10, SMALL_MOUNTAIN_CHAR, 0.2, 4));
                 }
                 this.bgSpawnTimer = Math.floor(Math.random() * 100) + 80;
             } else {
