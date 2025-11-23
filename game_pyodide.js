@@ -331,7 +331,8 @@ function setupInput() {
             // Name entry
             if (e.code === 'Enter' || e.code === 'NumpadEnter') {
                 if (playerName.length > 0) {
-                    const state = gameEngine.get_state().toJs();
+                    const stateProxy = gameEngine.get_state();
+                    const state = stateProxy.toJs({dict_converter: Object.fromEntries});
                     addHighScore(playerName, state.score);
                     gameState = 'gameover';
                     scoreEntered = true;
@@ -386,7 +387,8 @@ function handleAction() {
     } else if (gameState === 'highscore') {
         // Touch to submit name if we have one
         if (playerName.length > 0) {
-            const state = gameEngine.get_state().toJs();
+            const stateProxy = gameEngine.get_state();
+            const state = stateProxy.toJs({dict_converter: Object.fromEntries});
             addHighScore(playerName, state.score);
             gameState = 'gameover';
             scoreEntered = true;
@@ -396,64 +398,80 @@ function handleAction() {
 
 // Convert Python color tuple to CSS
 function colorToCSS(color) {
-    if (!color || color.length < 3) return '#000';
-    return `rgb(${color[0]},${color[1]},${color[2]})`;
+    if (!color) return '#000';
+    // Handle both array and proxy access
+    const r = color[0] !== undefined ? color[0] : (color.get ? color.get(0) : 0);
+    const g = color[1] !== undefined ? color[1] : (color.get ? color.get(1) : 0);
+    const b = color[2] !== undefined ? color[2] : (color.get ? color.get(2) : 0);
+    return `rgb(${r},${g},${b})`;
 }
 
 let lastDied = false;
 let frame = 0;
 
 function gameLoop() {
-    frame++;
+    try {
+        frame++;
 
-    if (gameState === 'intro') {
-        renderIntro();
-        playMusic();
-    } else if (gameState === 'playing') {
-        // Update game
-        const events = gameEngine.update().toJs();
+        if (gameState === 'intro') {
+            renderIntro();
+            playMusic();
+        } else if (gameState === 'playing') {
+            // Update game - convert Pyodide proxy to JS object
+            const eventsProxy = gameEngine.update();
+            const events = eventsProxy.toJs({dict_converter: Object.fromEntries});
 
-        // Play sounds based on events
-        if (events.died && !lastDied) {
-            playDeathSound();
+            // Play sounds based on events
+            if (events.died && !lastDied) {
+                playDeathSound();
 
-            // Check for high score
-            const state = gameEngine.get_state().toJs();
-            if (isHighScore(state.score)) {
-                gameState = 'highscore';
-            } else {
-                gameState = 'gameover';
-                scoreEntered = true;
+                // Check for high score
+                const stateProxy = gameEngine.get_state();
+                const state = stateProxy.toJs({dict_converter: Object.fromEntries});
+                if (isHighScore(state.score)) {
+                    gameState = 'highscore';
+                } else {
+                    gameState = 'gameover';
+                    scoreEntered = true;
+                }
             }
-        }
-        lastDied = events.died || false;
+            lastDied = events.died || false;
 
-        if (events.farted) {
-            playFartSound();
-        }
-
-        const collected = events.collected || [];
-        for (const powerupType of collected) {
-            playPickupSound();
-            if (powerupType === 'acid') {
-                playAcidSound();
-            } else if (powerupType === 'stopwatch') {
-                playStopwatchSound();
+            if (events.farted) {
+                playFartSound();
             }
+
+            const collected = events.collected || [];
+            for (const powerupType of collected) {
+                playPickupSound();
+                if (powerupType === 'acid') {
+                    playAcidSound();
+                } else if (powerupType === 'stopwatch') {
+                    playStopwatchSound();
+                }
+            }
+
+            // Play music
+            playMusic();
+
+            // Render game
+            renderGame();
+        } else if (gameState === 'gameover') {
+            renderGameOver();
+        } else if (gameState === 'highscore') {
+            renderHighScoreEntry();
         }
 
-        // Play music
-        playMusic();
-
-        // Render game
-        renderGame();
-    } else if (gameState === 'gameover') {
-        renderGameOver();
-    } else if (gameState === 'highscore') {
-        renderHighScoreEntry();
+        animationId = requestAnimationFrame(gameLoop);
+    } catch (error) {
+        console.error('Game loop error:', error);
+        // Display error on screen
+        ctx.fillStyle = '#f00';
+        ctx.font = '14px monospace';
+        ctx.fillText('Error: ' + error.message, 10, 50);
+        // Continue trying to run
+        animationId = requestAnimationFrame(gameLoop);
     }
-
-    animationId = requestAnimationFrame(gameLoop);
 }
 
 function renderIntro() {
@@ -545,21 +563,23 @@ function renderGame() {
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     // Get screen buffer from Python engine
-    const buffer = gameEngine.get_screen_buffer().toJs();
+    const bufferProxy = gameEngine.get_screen_buffer();
+    const buffer = bufferProxy.toJs();
 
     // Draw buffer with depth-based font sizes
     for (let y = 0; y < buffer.length; y++) {
         const row = buffer[y];
         for (let x = 0; x < row.length; x++) {
             const cell = row[x];
-            const char = cell[0];
-            const color = cell[1];
-            const depth = cell[2] !== undefined ? cell[2] : 2;
+            // Handle both array and proxy access
+            const char = cell[0] || cell.get(0);
+            const color = cell[1] || cell.get(1);
+            const depth = (cell[2] !== undefined ? cell[2] : (cell.get ? cell.get(2) : 2)) || 2;
 
             if (char && char !== ' ') {
-                ctx.font = DEPTH_FONTS[depth];
+                ctx.font = DEPTH_FONTS[depth] || DEPTH_FONTS[2];
                 ctx.fillStyle = colorToCSS(color);
-                const yPos = y * CHAR_HEIGHT + DEPTH_Y_OFFSET[depth];
+                const yPos = y * CHAR_HEIGHT + (DEPTH_Y_OFFSET[depth] || 0);
                 ctx.fillText(char, x * CHAR_WIDTH, yPos);
             }
         }
@@ -569,7 +589,8 @@ function renderGame() {
     ctx.font = '14px Consolas, "Courier New", monospace';
 
     // Draw HUD
-    const state = gameEngine.get_state().toJs();
+    const stateProxy = gameEngine.get_state();
+    const state = stateProxy.toJs({dict_converter: Object.fromEntries});
 
     // Score
     ctx.fillStyle = YELLOW;
@@ -633,21 +654,23 @@ function renderGameOver() {
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     // Get game over buffer from Python engine
-    const buffer = gameEngine.get_game_over_buffer().toJs();
+    const bufferProxy = gameEngine.get_game_over_buffer();
+    const buffer = bufferProxy.toJs();
 
     // Draw buffer with depth-based font sizes
     for (let y = 0; y < buffer.length; y++) {
         const row = buffer[y];
         for (let x = 0; x < row.length; x++) {
             const cell = row[x];
-            const char = cell[0];
-            const color = cell[1];
-            const depth = cell[2] !== undefined ? cell[2] : 2;
+            // Handle both array and proxy access
+            const char = cell[0] || cell.get(0);
+            const color = cell[1] || cell.get(1);
+            const depth = (cell[2] !== undefined ? cell[2] : (cell.get ? cell.get(2) : 2)) || 2;
 
             if (char && char !== ' ') {
-                ctx.font = DEPTH_FONTS[depth];
+                ctx.font = DEPTH_FONTS[depth] || DEPTH_FONTS[2];
                 ctx.fillStyle = colorToCSS(color);
-                const yPos = y * CHAR_HEIGHT + DEPTH_Y_OFFSET[depth];
+                const yPos = y * CHAR_HEIGHT + (DEPTH_Y_OFFSET[depth] || 0);
                 ctx.fillText(char, x * CHAR_WIDTH, yPos);
             }
         }
@@ -658,7 +681,8 @@ function renderHighScoreEntry() {
     ctx.fillStyle = BLACK;
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    const state = gameEngine.get_state().toJs();
+    const stateProxy = gameEngine.get_state();
+    const state = stateProxy.toJs({dict_converter: Object.fromEntries});
 
     // Title
     ctx.fillStyle = YELLOW;

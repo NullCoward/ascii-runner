@@ -1,6 +1,5 @@
 # ASCII Runner - Core Game Engine
-# Pure Python game logic - no rendering dependencies
-# Used by both pygame (local) and Pyodide (web)
+# Pure Python game logic loaded by Pyodide for web rendering
 
 import random
 import math
