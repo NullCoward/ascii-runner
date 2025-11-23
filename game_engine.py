@@ -851,13 +851,14 @@ class GameEngine:
         return events
 
     def get_screen_buffer(self):
-        """Returns 2D array of (char, color) tuples"""
-        screen = [[(' ', BLACK) for _ in range(SCREEN_COLS)] for _ in range(SCREEN_ROWS)]
+        """Returns 2D array of (char, color, depth) tuples
+        Depth: 0 = far background (smallest), 1 = mid background, 2 = foreground (largest)"""
+        screen = [[(' ', BLACK, 2) for _ in range(SCREEN_COLS)] for _ in range(SCREEN_ROWS)]
 
         env_name = get_environment_for_score(self.score)
         env = ENVIRONMENTS[env_name]
 
-        # Draw sun or moon based on day cycle (score-based)
+        # Draw sun or moon based on day cycle (score-based) - depth 0 (far)
         is_day = (self.score // 500) % 2 == 0
         if env_name != "cave":  # No sun/moon in caves
             if is_day:
@@ -868,7 +869,7 @@ class GameEngine:
                     for j, char in enumerate(row):
                         x, y = sun_x + j, sun_y + i
                         if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
-                            screen[y][x] = (char, sun_color)
+                            screen[y][x] = (char, sun_color, 0)
             else:
                 moon_x = 65
                 moon_y = 1
@@ -877,9 +878,9 @@ class GameEngine:
                     for j, char in enumerate(row):
                         x, y = moon_x + j, moon_y + i
                         if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
-                            screen[y][x] = (char, moon_color)
+                            screen[y][x] = (char, moon_color, 0)
 
-        # Draw background elements (mountains, snowmen) - behind everything
+        # Draw background elements (mountains, snowmen) - depth 0 (far)
         for elem in self.background_elements:
             color = elem.color
             if self.player.acid_timer > 0:
@@ -888,24 +889,24 @@ class GameEngine:
                 for j, char in enumerate(row):
                     x, y = int(elem.x) + j, elem.y + i
                     if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
-                        screen[y][x] = (char, color)
+                        screen[y][x] = (char, color, 0)
 
-        # Draw snowflakes
+        # Draw snowflakes - depth 1 (mid)
         for flake in self.snowflakes:
             x, y = int(flake.x), int(flake.y)
             if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
                 flake_color = WHITE
                 if self.player.acid_timer > 0:
                     flake_color = random.choice(PSYCHEDELIC_COLORS)
-                screen[y][x] = (flake.char, flake_color)
+                screen[y][x] = (flake.char, flake_color, 1)
 
-        # Draw lava blobs
+        # Draw lava blobs - depth 1 (mid)
         for blob in self.lava_blobs:
             x, y = int(blob.x), int(blob.y)
             if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
-                screen[y][x] = (blob.char, blob.color)
+                screen[y][x] = (blob.char, blob.color, 1)
 
-        # Background terrain
+        # Background terrain - depth 1 (mid)
         BG_TERRAIN_TOP = 12
         BG_TERRAIN_BOTTOM = 17
 
@@ -921,9 +922,9 @@ class GameEngine:
             terrain_top = BG_TERRAIN_TOP + height_offset
             if terrain_top >= 0 and terrain_top < SCREEN_ROWS:
                 char = bg_chars[(x + bg_offset) % len(bg_chars)]
-                screen[terrain_top][x] = (char, bg_color)
+                screen[terrain_top][x] = (char, bg_color, 1)
 
-        # Fill - scrolling fill pattern
+        # Fill - scrolling fill pattern - depth 1 (mid)
         fill_color = env["fill_color"]
         fill_char = env["fill_char"]
         fill_chars = [fill_char, '.', fill_char, ':']  # Varied pattern for movement
@@ -934,9 +935,9 @@ class GameEngine:
         for y in range(BG_TERRAIN_BOTTOM, GROUND_HEIGHT):
             for x in range(SCREEN_COLS):
                 char = fill_chars[(x + fill_offset + y) % len(fill_chars)]
-                screen[y][x] = (char, fill_color)
+                screen[y][x] = (char, fill_color, 1)
 
-        # Ground - scrolling at full speed
+        # Ground - scrolling at full speed - depth 2 (foreground)
         ground_color = env["ground_color"]
         ground_chars = env["ground_chars"]
         if self.player.acid_timer > 0:
@@ -944,9 +945,9 @@ class GameEngine:
         ground_offset = int(self.scroll_offset)
         for x in range(SCREEN_COLS):
             char = ground_chars[(x + ground_offset) % len(ground_chars)]
-            screen[GROUND_HEIGHT][x] = (char, ground_color)
+            screen[GROUND_HEIGHT][x] = (char, ground_color, 2)
 
-        # Obstacles
+        # Obstacles - depth 2 (foreground)
         for obs in self.obstacles:
             if not obs.alive:
                 continue
@@ -958,32 +959,32 @@ class GameEngine:
                     x, y = int(obs.x) + j, int(obs.y) + i
                     if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
                         if char == ' ':
-                            screen[y][x] = (' ', BLACK)
+                            screen[y][x] = (' ', BLACK, 2)
                         else:
-                            screen[y][x] = (char, obs_color)
+                            screen[y][x] = (char, obs_color, 2)
 
-        # Powerups
+        # Powerups - depth 2 (foreground)
         for powerup in self.powerups:
             for i, row in enumerate(powerup.char):
                 for j, char in enumerate(row):
                     x, y = int(powerup.x) + j, int(powerup.y) + i
                     if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
-                        screen[y][x] = (char, powerup.color)
+                        screen[y][x] = (char, powerup.color, 2)
 
-        # Fart puffs
+        # Fart puffs - depth 2 (foreground)
         for puff in self.fart_puffs:
             x, y = int(puff.x), int(puff.y)
             if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
-                screen[y][x] = (puff.get_char(), LIME)
+                screen[y][x] = (puff.get_char(), LIME, 2)
 
-        # Bullets
+        # Bullets - depth 2 (foreground)
         for bullet in self.bullets:
             x, y = int(bullet.x), int(bullet.y)
             for i, char in enumerate(bullet.char):
                 if 0 <= x + i < SCREEN_COLS and 0 <= y < SCREEN_ROWS:
-                    screen[y][x + i] = (char, ORANGE)
+                    screen[y][x + i] = (char, ORANGE, 2)
 
-        # Rainbow eye during nirvana
+        # Rainbow eye during nirvana - depth 2 (foreground)
         acid_level = self.player.get_acid_level()
         if acid_level == 3:
             eye_width = len(RAINBOW_EYE[0])
@@ -995,9 +996,9 @@ class GameEngine:
                     x, y = eye_x + j, eye_y + i
                     if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
                         color_idx = (i + j + self.frame // 3) % len(PSYCHEDELIC_COLORS)
-                        screen[y][x] = (char, PSYCHEDELIC_COLORS[color_idx])
+                        screen[y][x] = (char, PSYCHEDELIC_COLORS[color_idx], 2)
 
-        # Player
+        # Player - depth 2 (foreground)
         player_color = CYAN
         if self.player.acid_timer > 0:
             player_color = PSYCHEDELIC_COLORS[self.frame % len(PSYCHEDELIC_COLORS)]
@@ -1006,9 +1007,9 @@ class GameEngine:
             for j, char in enumerate(row):
                 x, y = int(self.player.x) + j, int(self.player.y) + i
                 if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
-                    screen[y][x] = (char, player_color)
+                    screen[y][x] = (char, player_color, 2)
 
-        # Flash text
+        # Flash text - depth 2 (foreground)
         if self.player.acid_flash_timer > 0:
             flash_text = ACID_FLASH_TEXT
             flash_y = 2
@@ -1019,7 +1020,7 @@ class GameEngine:
                         x, y = flash_x + j, flash_y + i
                         if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
                             color = PSYCHEDELIC_COLORS[(i + j + self.frame) % len(PSYCHEDELIC_COLORS)]
-                            screen[y][x] = (char, color)
+                            screen[y][x] = (char, color, 2)
 
         if self.player.nirvana_flash_timer > 0:
             flash_text = NIRVANA_FLASH_TEXT
@@ -1031,15 +1032,15 @@ class GameEngine:
                         x, y = flash_x + j, flash_y + i
                         if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
                             color = PSYCHEDELIC_COLORS[(i + j + self.frame) % len(PSYCHEDELIC_COLORS)]
-                            screen[y][x] = (char, color)
+                            screen[y][x] = (char, color, 2)
 
         # Emoji mode
         if acid_level == 2:
             for y in range(SCREEN_ROWS):
                 for x in range(SCREEN_COLS):
-                    char, color = screen[y][x]
+                    char, color, depth = screen[y][x]
                     if char in EMOJI_CHARS:
-                        screen[y][x] = (EMOJI_CHARS[char], color)
+                        screen[y][x] = (EMOJI_CHARS[char], color, depth)
 
         return screen
 
@@ -1064,7 +1065,7 @@ class GameEngine:
 
     def get_game_over_buffer(self):
         """Returns game over screen with Gates of Hell"""
-        screen = [[(' ', BLACK) for _ in range(SCREEN_COLS)] for _ in range(SCREEN_ROWS)]
+        screen = [[(' ', BLACK, 2) for _ in range(SCREEN_COLS)] for _ in range(SCREEN_ROWS)]
 
         flame_chars = ['^', 'W', 'M', '*', '~', 'v', 'A']
 
@@ -1073,7 +1074,7 @@ class GameEngine:
             for x in range(SCREEN_COLS):
                 if random.random() < 0.1:
                     darkness = 50 + int(y * 3)
-                    screen[y][x] = ('.', (darkness, 0, 0))
+                    screen[y][x] = ('.', (darkness, 0, 0), 2)
 
         # Gates of Hell - centered
         gates_width = len(GATES_OF_HELL[0]) if GATES_OF_HELL else 0
@@ -1113,7 +1114,7 @@ class GameEngine:
                         else:
                             # Default gate color
                             color = (100, 100, 110)
-                        screen[y][x] = (char, color)
+                        screen[y][x] = (char, color, 2)
 
         # Draw player figure in front of gates (centered at bottom of gate opening)
         player_x = SCREEN_COLS // 2 - 1
@@ -1122,7 +1123,7 @@ class GameEngine:
             for j, char in enumerate(row):
                 x, y = player_x + j, player_y + i
                 if 0 <= x < SCREEN_COLS and 0 <= y < SCREEN_ROWS and char != ' ':
-                    screen[y][x] = (char, CYAN)
+                    screen[y][x] = (char, CYAN, 2)
 
         # Animated flames pouring out from gate opening
         gate_center = SCREEN_COLS // 2
@@ -1134,13 +1135,13 @@ class GameEngine:
                 color = random.choice([RED, ORANGE, YELLOW, (255, 100, 0)])
                 # Only draw if not overwriting important stuff
                 if screen[fy][fx][0] in ' .':
-                    screen[fy][fx] = (char, color)
+                    screen[fy][fx] = (char, color, 2)
 
         # Ground - charred earth
         for x in range(SCREEN_COLS):
             char = random.choice(['#', '=', '_', '~'])
             color = (40, 20, 10) if random.random() < 0.7 else (60, 30, 0)
-            screen[SCREEN_ROWS - 3][x] = (char, color)
+            screen[SCREEN_ROWS - 3][x] = (char, color, 2)
 
         # Score display - bottom of screen
         score_text = f"Score: {self.score}  High: {self.high_score}"
@@ -1151,12 +1152,12 @@ class GameEngine:
 
         for i, char in enumerate(score_text):
             if 0 <= score_x + i < SCREEN_COLS:
-                screen[SCREEN_ROWS - 2][score_x + i] = (char, (150, 150, 150))
+                screen[SCREEN_ROWS - 2][score_x + i] = (char, (150, 150, 150), 2)
 
         # Blinking restart text
         if (self.frame // 30) % 2 == 0:
             for i, char in enumerate(restart_text):
                 if 0 <= restart_x + i < SCREEN_COLS:
-                    screen[SCREEN_ROWS - 1][restart_x + i] = (char, CYAN)
+                    screen[SCREEN_ROWS - 1][restart_x + i] = (char, CYAN, 2)
 
         return screen

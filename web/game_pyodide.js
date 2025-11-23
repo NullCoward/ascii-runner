@@ -504,6 +504,20 @@ function renderIntro() {
     }
 }
 
+// Font sizes for different depths (parallax effect)
+const DEPTH_FONTS = {
+    0: '8px Consolas, "Courier New", monospace',   // Far background - smallest
+    1: '10px Consolas, "Courier New", monospace',  // Mid background
+    2: '14px Consolas, "Courier New", monospace'   // Foreground - largest
+};
+
+// Y offsets to align different font sizes to same baseline
+const DEPTH_Y_OFFSET = {
+    0: 2,  // Smaller font needs less offset
+    1: 1,
+    2: 0
+};
+
 function renderGame() {
     // Clear screen
     ctx.fillStyle = BLACK;
@@ -512,20 +526,26 @@ function renderGame() {
     // Get screen buffer from Python engine
     const buffer = gameEngine.get_screen_buffer().toJs();
 
-    // Draw buffer
+    // Draw buffer with depth-based font sizes
     for (let y = 0; y < buffer.length; y++) {
         const row = buffer[y];
         for (let x = 0; x < row.length; x++) {
             const cell = row[x];
             const char = cell[0];
             const color = cell[1];
+            const depth = cell[2] !== undefined ? cell[2] : 2;
 
             if (char && char !== ' ') {
+                ctx.font = DEPTH_FONTS[depth];
                 ctx.fillStyle = colorToCSS(color);
-                ctx.fillText(char, x * CHAR_WIDTH, y * CHAR_HEIGHT);
+                const yPos = y * CHAR_HEIGHT + DEPTH_Y_OFFSET[depth];
+                ctx.fillText(char, x * CHAR_WIDTH, yPos);
             }
         }
     }
+
+    // Reset font to default for HUD
+    ctx.font = '14px Consolas, "Courier New", monospace';
 
     // Draw HUD
     const state = gameEngine.get_state().toJs();
@@ -594,17 +614,20 @@ function renderGameOver() {
     // Get game over buffer from Python engine
     const buffer = gameEngine.get_game_over_buffer().toJs();
 
-    // Draw buffer
+    // Draw buffer with depth-based font sizes
     for (let y = 0; y < buffer.length; y++) {
         const row = buffer[y];
         for (let x = 0; x < row.length; x++) {
             const cell = row[x];
             const char = cell[0];
             const color = cell[1];
+            const depth = cell[2] !== undefined ? cell[2] : 2;
 
             if (char && char !== ' ') {
+                ctx.font = DEPTH_FONTS[depth];
                 ctx.fillStyle = colorToCSS(color);
-                ctx.fillText(char, x * CHAR_WIDTH, y * CHAR_HEIGHT);
+                const yPos = y * CHAR_HEIGHT + DEPTH_Y_OFFSET[depth];
+                ctx.fillText(char, x * CHAR_WIDTH, yPos);
             }
         }
     }
