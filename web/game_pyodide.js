@@ -187,26 +187,46 @@ async function initGame() {
     // Show loading message
     const loadingDiv = document.createElement('div');
     loadingDiv.id = 'loading';
-    loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#0f0;font-family:monospace;font-size:20px;text-align:center;';
+    loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#0f0;font-family:monospace;font-size:20px;text-align:center;z-index:9999;background:#000;padding:20px;border:2px solid #0f0;';
     loadingDiv.innerHTML = 'Loading Pyodide...<br><span style="font-size:12px;color:#666;">First load may take a moment</span>';
     document.body.appendChild(loadingDiv);
 
     try {
-        // Load Pyodide
-        pyodide = await loadPyodide();
+        // Check if Pyodide script loaded
+        if (typeof loadPyodide === 'undefined') {
+            throw new Error('Pyodide script failed to load. Check your internet connection.');
+        }
+
+        // Load Pyodide with timeout
+        loadingDiv.innerHTML = 'Loading Python runtime...<br><span style="font-size:12px;color:#666;">This may take 30-60 seconds on mobile</span>';
+
+        const pyodidePromise = loadPyodide();
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Pyodide load timeout (60s)')), 60000)
+        );
+
+        pyodide = await Promise.race([pyodidePromise, timeoutPromise]);
         loadingDiv.innerHTML = 'Loading game engine...';
 
         // Fetch and load game_engine.py
         const response = await fetch('../game_engine.py');
+        if (!response.ok) {
+            throw new Error(`Failed to fetch game_engine.py: ${response.status}`);
+        }
         const engineCode = await response.text();
 
         // Run the engine code
+        loadingDiv.innerHTML = 'Initializing game...';
         await pyodide.runPythonAsync(engineCode);
 
         // Create game instance
         await pyodide.runPythonAsync(`game = GameEngine()`);
 
         gameEngine = pyodide.globals.get('game');
+
+        if (!gameEngine) {
+            throw new Error('Failed to create game engine instance');
+        }
 
         // Load high scores
         loadHighScores();
@@ -232,8 +252,9 @@ async function initGame() {
         requestAnimationFrame(gameLoop);
 
     } catch (error) {
-        loadingDiv.innerHTML = 'Error loading game:<br>' + error.message;
         console.error('Failed to initialize game:', error);
+        loadingDiv.style.color = '#f00';
+        loadingDiv.innerHTML = `<strong>Error loading game:</strong><br><br>${error.message}<br><br><span style="font-size:12px;color:#888;">Try refreshing the page.<br>Pyodide requires ~40MB download on first load.</span>`;
     }
 }
 
